@@ -58,13 +58,13 @@ export default function LoginPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b' },
-  card: { background: '#fff', borderRadius: 16, padding: '40px 36px', width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
+  card: { background: 'var(--bg-card)', borderRadius: 16, padding: '40px 36px', width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
   header: { textAlign: 'center', marginBottom: 32 },
-  title: { fontSize: 26, fontWeight: 700, color: '#1e293b', margin: '8px 0 4px' },
-  subtitle: { color: '#64748b', fontSize: 14 },
+  title: { fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', margin: '8px 0 4px' },
+  subtitle: { color: 'var(--text-secondary)', fontSize: 14 },
   form: { display: 'flex', flexDirection: 'column', gap: 18 },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  label: { fontSize: 13, fontWeight: 600, color: '#374151' },
-  input: { padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, outline: 'none' },
+  label: { fontSize: 13, fontWeight: 600, color: 'var(--text-body)' },
+  input: { padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-body)' },
   btn: { padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 4 },
 };

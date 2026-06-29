@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 const links = [
   { to: '/', label: 'Dashboard', icon: '📊' },
@@ -12,6 +13,7 @@ const links = [
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -39,6 +41,9 @@ export default function Sidebar() {
         ))}
       </nav>
       <div style={styles.footer}>
+        <button onClick={toggleTheme} style={styles.themeBtn}>
+          {theme === 'light' ? '🌙 Modo Escuro' : '☀️ Modo Claro'}
+        </button>
         <div style={styles.userInfo}>
           <span style={{ fontSize: 18 }}>👤</span>
           <div>
@@ -60,6 +65,7 @@ const styles: Record<string, React.CSSProperties> = {
   link: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, color: '#94a3b8', textDecoration: 'none', fontSize: 14, fontWeight: 500 },
   activeLink: { background: '#334155', color: '#f1f5f9' },
   footer: { padding: '16px 12px', borderTop: '1px solid #334155' },
+  themeBtn: { width: '100%', padding: '8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, marginBottom: 10, textAlign: 'left' as const },
   userInfo: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
   userName: { color: '#f1f5f9', fontSize: 13, fontWeight: 600 },
   userEmail: { color: '#64748b', fontSize: 11 },

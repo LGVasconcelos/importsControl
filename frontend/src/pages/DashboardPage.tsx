@@ -74,19 +74,19 @@ export default function DashboardPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  pageTitle: { fontSize: 24, fontWeight: 700, color: '#1e293b', marginBottom: 24 },
+  pageTitle: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 24 },
   cards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 },
-  card: { background: '#fff', borderRadius: 12, padding: '20px 24px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' },
+  card: { background: 'var(--bg-card)', borderRadius: 12, padding: '20px 24px', boxShadow: 'var(--shadow)' },
   cardIcon: { fontSize: 28, marginBottom: 8 },
   cardValue: { fontSize: 32, fontWeight: 800, lineHeight: 1 },
-  cardLabel: { fontSize: 13, color: '#64748b', marginTop: 4, fontWeight: 500 },
+  cardLabel: { fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, fontWeight: 500 },
   row: { display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20 },
-  chartBox: { background: '#fff', borderRadius: 12, padding: '20px 24px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' },
-  movementsBox: { background: '#fff', borderRadius: 12, padding: '20px 24px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' },
-  sectionTitle: { fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 16 },
+  chartBox: { background: 'var(--bg-card)', borderRadius: 12, padding: '20px 24px', boxShadow: 'var(--shadow)' },
+  movementsBox: { background: 'var(--bg-card)', borderRadius: 12, padding: '20px 24px', boxShadow: 'var(--shadow)' },
+  sectionTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 },
   movList: { display: 'flex', flexDirection: 'column', gap: 8 },
   movItem: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 },
   badge: { padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' },
-  movProduct: { flex: 1, color: '#374151', fontWeight: 500 },
-  movQty: { color: '#64748b', fontWeight: 600 },
+  movProduct: { flex: 1, color: 'var(--text-body)', fontWeight: 500 },
+  movQty: { color: 'var(--text-secondary)', fontWeight: 600 },
 };
