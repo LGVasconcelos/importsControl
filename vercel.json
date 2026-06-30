@@ -1,15 +1,22 @@
 {
-  "version": 2,
-  "buildCommand": "npm --prefix frontend ci && npm --prefix frontend run build",
-  "outputDirectory": "frontend/dist",
-  "functions": {
-    "backend/api/index.ts": {
-      "memory": 1024,
-      "maxDuration": 30
+  "experimentalServices": {
+    "frontend": {
+      "root": "frontend",
+      "framework": "vite"
+    },
+    "backend": {
+      "root": "backend",
+      "entrypoint": "api/index.ts"
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/backend/api/index.ts" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": { "type": "service", "service": "backend" }
+    },
+    {
+      "source": "/(.*)",
+      "destination": { "type": "service", "service": "frontend" }
+    }
   ]
 }
