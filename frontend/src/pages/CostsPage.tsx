@@ -13,7 +13,8 @@ export default function CostsPage() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState<Partial<Cost>>({ orderId: 0, description: '', value: 0, currency: 'BRL', exchangeRate: 1, costType: '', notes: '' });
 
-  const load = () => costsService.getAll().then(setCosts);
+  const [loading, setLoading] = useState(true);
+  const load = () => { setLoading(true); costsService.getAll().then(setCosts).finally(() => setLoading(false)); };
   useEffect(() => {
     load();
     ordersService.getAll().then(setOrders);
@@ -76,7 +77,7 @@ export default function CostsPage() {
             ))}
           </tbody>
         </table>
-        {costs.length === 0 && <div style={styles.empty}>Nenhum custo registrado.</div>}
+        {loading ? <div style={styles.empty}>Carregando...</div> : costs.length === 0 && <div style={styles.empty}>Nenhum custo registrado.</div>}
       </div>
 
       {modal && (

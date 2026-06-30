@@ -11,8 +11,9 @@ export default function ProductsPage() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState<Partial<Product>>(emptyForm);
   const [editing, setEditing] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const load = () => productsService.getAll(search || undefined).then(setProducts);
+  const load = () => { setLoading(true); productsService.getAll(search || undefined).then(setProducts).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, [search]);
 
   const openCreate = () => { setForm(emptyForm); setEditing(null); setModal(true); };
@@ -20,8 +21,14 @@ export default function ProductsPage() {
 
   const handleSave = async () => {
     try {
-      if (editing) await productsService.update(editing, form);
-      else await productsService.create(form);
+      const payload = {
+        ...form,
+        costPrice: form.costPrice !== undefined ? Number(form.costPrice) : undefined,
+        salePrice: form.salePrice !== undefined ? Number(form.salePrice) : undefined,
+        minimumStock: form.minimumStock !== undefined ? Number(form.minimumStock) : undefined,
+      };
+      if (editing) await productsService.update(editing, payload);
+      else await productsService.create(payload);
       toast.success(editing ? 'Produto atualizado!' : 'Produto criado!');
       setModal(false);
       load();
@@ -78,7 +85,7 @@ export default function ProductsPage() {
             ))}
           </tbody>
         </table>
-        {products.length === 0 && <div style={styles.empty}>Nenhum produto encontrado.</div>}
+        {loading ? <div style={styles.empty}>Carregando...</div> : products.length === 0 && <div style={styles.empty}>Nenhum produto encontrado.</div>}
       </div>
 
       {modal && (

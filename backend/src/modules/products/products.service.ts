@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Product } from './product.entity';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 
@@ -21,7 +21,7 @@ export class ProductsService {
   findAll(search?: string): Promise<Product[]> {
     if (search) {
       return this.productRepo.find({
-        where: [{ name: Like(`%${search}%`) }, { sku: Like(`%${search}%`) }],
+        where: [{ name: ILike(`%${search}%`) }, { sku: ILike(`%${search}%`) }],
         order: { name: 'ASC' },
       });
     }

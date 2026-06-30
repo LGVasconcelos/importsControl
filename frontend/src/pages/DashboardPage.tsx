@@ -12,9 +12,12 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [orderStats, setOrderStats] = useState<{ status: string; count: string }[]>([]);
 
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    reportsService.getDashboard().then(setData);
-    reportsService.getOrders().then((r) => setOrderStats(r.byStatus));
+    Promise.all([
+      reportsService.getDashboard().then(setData),
+      reportsService.getOrders().then((r) => setOrderStats(r.byStatus)),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const cards = data ? [
@@ -29,6 +32,7 @@ export default function DashboardPage() {
   return (
     <div>
       <h1 style={styles.pageTitle}>Dashboard</h1>
+      {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>Carregando...</div>}
       <div style={styles.cards}>
         {cards.map((c) => (
           <div key={c.label} style={{ ...styles.card, borderTop: `4px solid ${c.color}` }}>

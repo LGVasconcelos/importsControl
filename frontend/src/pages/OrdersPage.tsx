@@ -12,6 +12,8 @@ const statusColor: Record<OrderStatus, string> = {
   CUSTOMS: '#7c3aed', RECEIVED: '#16a34a', CANCELLED: '#dc2626',
 };
 
+const toDateInput = (v?: string) => (v ? v.split('T')[0] : '');
+
 const emptyForm: Partial<Order> = {
   orderNumber: '', supplier: '', origin: '', status: 'PENDING',
   orderDate: '', expectedArrival: '', totalValue: 0, currency: 'USD', exchangeRate: 1,
@@ -20,20 +22,34 @@ const emptyForm: Partial<Order> = {
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [filterStatus, setFilterStatus] = useState('');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState<Partial<Order>>(emptyForm);
   const [editing, setEditing] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const load = () => ordersService.getAll().then(setOrders);
+  const load = () => { setLoading(true); ordersService.getAll().then(setOrders).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, []);
 
   const openCreate = () => { setForm(emptyForm); setEditing(null); setModal(true); };
-  const openEdit = (o: Order) => { setForm(o); setEditing(o.id); setModal(true); };
+  const openEdit = (o: Order) => {
+    setForm({
+      ...o,
+      orderDate: toDateInput(o.orderDate),
+      expectedArrival: toDateInput(o.expectedArrival),
+      actualArrival: toDateInput(o.actualArrival),
+      totalValue: Number(o.totalValue),
+      exchangeRate: Number(o.exchangeRate),
+    });
+    setEditing(o.id);
+    setModal(true);
+  };
 
   const handleSave = async () => {
     try {
-      if (editing) await ordersService.update(editing, form);
-      else await ordersService.create(form);
+      const payload = { ...form, totalValue: Number(form.totalValue), exchangeRate: Number(form.exchangeRate) };
+      if (editing) await ordersService.update(editing, payload);
+      else await ordersService.create(payload);
       toast.success(editing ? 'Pedido atualizado!' : 'Pedido criado!');
       setModal(false);
       load();
@@ -49,13 +65,32 @@ export default function OrdersPage() {
     load();
   };
 
+  const handleStatusChange = async (id: number, status: OrderStatus) => {
+    try {
+      await ordersService.update(id, { status });
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+      toast.success('Status atualizado!');
+    } catch {
+      toast.error('Erro ao atualizar status');
+    }
+  };
+
+  const filtered = filterStatus ? orders.filter(o => o.status === filterStatus) : orders;
+
   return (
     <div>
       <div style={styles.header}>
         <h1 style={styles.title}>Pedidos de Importação</h1>
         <button onClick={openCreate} style={styles.btnPrimary}>+ Novo Pedido</button>
       </div>
+      <div style={styles.toolbar}>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={styles.filterSelect}>
+          <option value="">Todos os status</option>
+          {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
       <div style={styles.tableWrap}>
+        {loading ? <div style={styles.loading}>Carregando...</div> : (
         <table style={styles.table}>
           <thead>
             <tr style={styles.thead}>
@@ -65,18 +100,22 @@ export default function OrdersPage() {
             </tr>
           </thead>
           <tbody>
-            {orders.map(o => (
+            {filtered.map(o => (
               <tr key={o.id} style={styles.tr}>
                 <td style={styles.td}><span style={styles.sku}>{o.orderNumber}</span></td>
                 <td style={styles.td}>{o.supplier}</td>
                 <td style={styles.td}>{o.origin || '—'}</td>
                 <td style={styles.td}>
-                  <span style={{ ...styles.badge, color: statusColor[o.status], background: statusColor[o.status] + '20' }}>
-                    {statusLabel[o.status]}
-                  </span>
+                  <select
+                    value={o.status}
+                    onChange={e => handleStatusChange(o.id, e.target.value as OrderStatus)}
+                    style={{ ...styles.statusSelect, color: statusColor[o.status], borderColor: statusColor[o.status] + '80', background: statusColor[o.status] + '18' }}
+                  >
+                    {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
                 </td>
-                <td style={styles.td}>{o.orderDate || '—'}</td>
-                <td style={styles.td}>{o.expectedArrival || '—'}</td>
+                <td style={styles.td}>{toDateInput(o.orderDate) || '—'}</td>
+                <td style={styles.td}>{toDateInput(o.expectedArrival) || '—'}</td>
                 <td style={styles.td}>{o.currency} {Number(o.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                 <td style={styles.td}>{o.trackingCode || '—'}</td>
                 <td style={styles.td}>
@@ -87,7 +126,8 @@ export default function OrdersPage() {
             ))}
           </tbody>
         </table>
-        {orders.length === 0 && <div style={styles.empty}>Nenhum pedido cadastrado.</div>}
+        )}
+        {!loading && filtered.length === 0 && <div style={styles.empty}>Nenhum pedido encontrado.</div>}
       </div>
 
       {modal && (
@@ -128,6 +168,10 @@ export default function OrdersPage() {
 const styles: Record<string, React.CSSProperties> = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   title: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' },
+  toolbar: { marginBottom: 16 },
+  filterSelect: { padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-body)', cursor: 'pointer' },
+  statusSelect: { padding: '4px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, border: '1.5px solid', cursor: 'pointer', outline: 'none' },
+  loading: { padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' },
   tableWrap: { background: 'var(--bg-card)', borderRadius: 12, boxShadow: 'var(--shadow)', overflow: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse' },
   thead: { background: 'var(--bg-thead)' },

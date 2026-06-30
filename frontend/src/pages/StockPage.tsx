@@ -14,8 +14,9 @@ export default function StockPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ productId: 0, type: 'ENTRY' as MovementType, quantity: 1, reason: '', orderReference: '' });
+  const [loading, setLoading] = useState(true);
 
-  const load = () => stockService.getMovements().then(setMovements);
+  const load = () => { setLoading(true); stockService.getMovements().then(setMovements).finally(() => setLoading(false)); };
   useEffect(() => {
     load();
     productsService.getAll().then(setProducts);
@@ -65,7 +66,7 @@ export default function StockPage() {
             ))}
           </tbody>
         </table>
-        {movements.length === 0 && <div style={styles.empty}>Nenhuma movimentação registrada.</div>}
+        {loading ? <div style={styles.empty}>Carregando...</div> : movements.length === 0 && <div style={styles.empty}>Nenhuma movimentação registrada.</div>}
       </div>
 
       {modal && (
