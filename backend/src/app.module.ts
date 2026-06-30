@@ -13,6 +13,7 @@ import { User } from './modules/users/user.entity';
 import { Product } from './modules/products/product.entity';
 import { StockMovement } from './modules/stock/stock-movement.entity';
 import { Order } from './modules/orders/order.entity';
+import { OrderItem } from './modules/orders/order-item.entity';
 import { Cost } from './modules/costs/cost.entity';
 
 @Module({
@@ -22,7 +23,7 @@ import { Cost } from './modules/costs/cost.entity';
       type: 'postgres',
       url: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      entities: [User, Product, StockMovement, Order, Cost],
+      entities: [User, Product, StockMovement, Order, OrderItem, Cost],
       synchronize: true,
     }),
     AuthModule,
