@@ -2,21 +2,13 @@
   "experimentalServices": {
     "frontend": {
       "root": "frontend",
-      "framework": "vite"
+      "framework": "vite",
+      "mount": "/"
     },
     "backend": {
       "root": "backend",
-      "entrypoint": "api/index.ts"
+      "entrypoint": "api/index.ts",
+      "routePrefix": "/api"
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": { "type": "service", "service": "backend" }
-    },
-    {
-      "source": "/(.*)",
-      "destination": { "type": "service", "service": "frontend" }
-    }
-  ]
+  }
 }
