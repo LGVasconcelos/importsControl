@@ -5,6 +5,8 @@ import { productsService } from '../services/products.service';
 import type { Product } from '../services/products.service';
 import toast from 'react-hot-toast';
 
+const CURRENCIES = ['USD', 'EUR', 'CNY', 'GBP', 'JPY', 'BRL'];
+
 const statusLabel: Record<OrderStatus, string> = {
   PENDING: 'Pendente', CONFIRMED: 'Confirmado', IN_TRANSIT: 'Em Trânsito',
   CUSTOMS: 'Desembaraço', RECEIVED: 'Recebido', CANCELLED: 'Cancelado',
@@ -33,6 +35,27 @@ export default function OrdersPage() {
   const [trackingInput, setTrackingInput] = useState('');
   const [items, setItems] = useState<Omit<OrderItem, 'id'>[]>([]);
   const [itemDraft, setItemDraft] = useState({ productId: 0, quantity: 1, unitPrice: 0 });
+  const [fetchingRate, setFetchingRate] = useState(false);
+
+  const fetchExchangeRate = async (currency: string) => {
+    if (currency === 'BRL') { setForm(f => ({ ...f, currency, exchangeRate: 1 })); return; }
+    setFetchingRate(true);
+    try {
+      const res = await fetch(`https://api.frankfurter.app/latest?from=${currency}&to=BRL`);
+      const data = await res.json();
+      const rate = data.rates?.BRL;
+      if (rate) {
+        setForm(f => ({ ...f, currency, exchangeRate: Number(rate.toFixed(4)) }));
+        toast.success(`Taxa: 1 ${currency} = R$ ${rate.toFixed(4)}`, { duration: 2500 });
+      } else {
+        setForm(f => ({ ...f, currency }));
+      }
+    } catch {
+      setForm(f => ({ ...f, currency }));
+    } finally {
+      setFetchingRate(false);
+    }
+  };
 
   const parseCodes = (v?: string) => v ? v.split(',').map(s => s.trim()).filter(Boolean) : [];
 
@@ -196,8 +219,16 @@ export default function OrdersPage() {
               <div style={styles.field}><label style={styles.label}>Previsão de Chegada</label><input type="date" value={form.expectedArrival || ''} onChange={e => setForm(f => ({ ...f, expectedArrival: e.target.value }))} style={styles.input} /></div>
               <div style={styles.field}><label style={styles.label}>Data Chegada Real</label><input type="date" value={form.actualArrival || ''} onChange={e => setForm(f => ({ ...f, actualArrival: e.target.value }))} style={styles.input} /></div>
               <div style={styles.field}><label style={styles.label}>Valor Total</label><input type="number" value={form.totalValue || 0} onChange={e => setForm(f => ({ ...f, totalValue: Number(e.target.value) }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Moeda</label><input value={form.currency || 'USD'} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Taxa de Câmbio</label><input type="number" step="0.0001" value={form.exchangeRate || 1} onChange={e => setForm(f => ({ ...f, exchangeRate: Number(e.target.value) }))} style={styles.input} /></div>
+              <div style={styles.field}>
+                <label style={styles.label}>Moeda</label>
+                <select value={form.currency || 'USD'} onChange={e => fetchExchangeRate(e.target.value)} style={styles.input}>
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Taxa de Câmbio {fetchingRate && <span style={{ fontWeight: 400, color: '#2563eb' }}>(buscando...)</span>}</label>
+                <input type="number" step="0.0001" value={form.exchangeRate || 1} onChange={e => setForm(f => ({ ...f, exchangeRate: Number(e.target.value) }))} style={styles.input} />
+              </div>
               <div style={styles.field}><label style={styles.label}>Nº da Invoice</label><input value={form.invoiceNumber || ''} onChange={e => setForm(f => ({ ...f, invoiceNumber: e.target.value }))} style={styles.input} /></div>
             </div>
             <div style={styles.field}>
