@@ -12,6 +12,10 @@ export class OrderItem {
   @Column()
   productId: number;
 
+  @ManyToOne('Order', 'items', { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'orderId' })
+  order: any;
+
   @ManyToOne(() => Product, { eager: true, nullable: true })
   @JoinColumn({ name: 'productId' })
   product: Product;
