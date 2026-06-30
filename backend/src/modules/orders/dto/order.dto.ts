@@ -1,5 +1,20 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsEnum, IsDateString } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsEnum, IsDateString, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { OrderStatus } from '../order.entity';
+
+export class OrderItemDto {
+  @IsNumber()
+  productId: number;
+
+  @IsNumber()
+  quantity: number;
+
+  @IsOptional() @IsNumber()
+  unitPrice?: number;
+
+  @IsOptional() @IsString()
+  notes?: string;
+}
 
 export class CreateOrderDto {
   @IsString() @IsNotEmpty()
@@ -40,6 +55,9 @@ export class CreateOrderDto {
 
   @IsOptional() @IsString()
   notes?: string;
+
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => OrderItemDto)
+  items?: OrderItemDto[];
 }
 
 export class UpdateOrderDto extends CreateOrderDto {}

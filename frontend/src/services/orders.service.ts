@@ -2,11 +2,22 @@ import api from './api';
 
 export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'IN_TRANSIT' | 'CUSTOMS' | 'RECEIVED' | 'CANCELLED';
 
+export interface OrderItem {
+  id?: number;
+  productId: number;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  notes?: string;
+  product?: { id: number; name: string; sku: string; unit: string };
+}
+
 export interface Order {
   id: number; orderNumber: string; supplier: string; origin?: string;
   status: OrderStatus; orderDate?: string; expectedArrival?: string; actualArrival?: string;
   totalValue: number; currency: string; exchangeRate: number;
   invoiceNumber?: string; trackingCode?: string; notes?: string;
+  items?: OrderItem[];
   user?: { name: string }; createdAt: string; updatedAt: string;
 }
 

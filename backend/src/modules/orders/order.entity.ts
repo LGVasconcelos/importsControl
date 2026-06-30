@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { User } from '../users/user.entity';
+import { OrderItem } from './order-item.entity';
 
 export enum OrderStatus {
   PENDING = 'PENDING',
@@ -48,7 +49,7 @@ export class Order {
   @Column({ nullable: true, length: 100 })
   invoiceNumber: string;
 
-  @Column({ nullable: true, length: 100 })
+  @Column({ nullable: true, type: 'text' })
   trackingCode: string;
 
   @Column({ nullable: true, type: 'text' })
@@ -60,6 +61,9 @@ export class Order {
 
   @Column({ nullable: true })
   userId: number;
+
+  @OneToMany(() => OrderItem, item => item.orderId, { cascade: true, eager: true })
+  items: OrderItem[];
 
   @CreateDateColumn()
   createdAt: Date;

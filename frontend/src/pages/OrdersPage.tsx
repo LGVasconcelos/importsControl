@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ordersService } from '../services/orders.service';
-import type { Order, OrderStatus } from '../services/orders.service';
+import type { Order, OrderStatus, OrderItem } from '../services/orders.service';
+import { productsService } from '../services/products.service';
+import type { Product } from '../services/products.service';
 import toast from 'react-hot-toast';
 
 const statusLabel: Record<OrderStatus, string> = {
@@ -22,16 +24,25 @@ const emptyForm: Partial<Order> = {
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [filterStatus, setFilterStatus] = useState('');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState<Partial<Order>>(emptyForm);
   const [editing, setEditing] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trackingInput, setTrackingInput] = useState('');
+  const [items, setItems] = useState<Omit<OrderItem, 'id'>[]>([]);
+  const [itemDraft, setItemDraft] = useState({ productId: 0, quantity: 1, unitPrice: 0 });
+
+  const parseCodes = (v?: string) => v ? v.split(',').map(s => s.trim()).filter(Boolean) : [];
 
   const load = () => { setLoading(true); ordersService.getAll().then(setOrders).finally(() => setLoading(false)); };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    productsService.getAll().then(setProducts);
+  }, []);
 
-  const openCreate = () => { setForm(emptyForm); setEditing(null); setModal(true); };
+  const openCreate = () => { setForm(emptyForm); setEditing(null); setTrackingInput(''); setItems([]); setItemDraft({ productId: 0, quantity: 1, unitPrice: 0 }); setModal(true); };
   const openEdit = (o: Order) => {
     setForm({
       ...o,
@@ -41,13 +52,39 @@ export default function OrdersPage() {
       totalValue: Number(o.totalValue),
       exchangeRate: Number(o.exchangeRate),
     });
+    setItems((o.items || []).map(i => ({ productId: i.productId, quantity: Number(i.quantity), unitPrice: Number(i.unitPrice), totalPrice: Number(i.totalPrice), notes: i.notes || '' })));
+    setItemDraft({ productId: 0, quantity: 1, unitPrice: 0 });
+    setTrackingInput('');
     setEditing(o.id);
     setModal(true);
   };
 
+  const addItem = () => {
+    if (!itemDraft.productId) { toast.error('Selecione um produto'); return; }
+    if (itemDraft.quantity <= 0) { toast.error('Quantidade deve ser maior que zero'); return; }
+    setItems(prev => [...prev, { productId: itemDraft.productId, quantity: itemDraft.quantity, unitPrice: itemDraft.unitPrice, totalPrice: itemDraft.quantity * itemDraft.unitPrice, notes: '' }]);
+    setItemDraft({ productId: 0, quantity: 1, unitPrice: 0 });
+  };
+
+  const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
+
+  const addTrackingCode = () => {
+    const code = trackingInput.trim();
+    if (!code) return;
+    const codes = parseCodes(form.trackingCode);
+    if (codes.includes(code)) { toast.error('Código já adicionado'); return; }
+    setForm(f => ({ ...f, trackingCode: [...codes, code].join(', ') }));
+    setTrackingInput('');
+  };
+
+  const removeTrackingCode = (code: string) => {
+    const codes = parseCodes(form.trackingCode).filter(c => c !== code);
+    setForm(f => ({ ...f, trackingCode: codes.join(', ') }));
+  };
+
   const handleSave = async () => {
     try {
-      const payload = { ...form, totalValue: Number(form.totalValue), exchangeRate: Number(form.exchangeRate) };
+      const payload = { ...form, totalValue: Number(form.totalValue), exchangeRate: Number(form.exchangeRate), items };
       if (editing) await ordersService.update(editing, payload);
       else await ordersService.create(payload);
       toast.success(editing ? 'Pedido atualizado!' : 'Pedido criado!');
@@ -94,7 +131,7 @@ export default function OrdersPage() {
         <table style={styles.table}>
           <thead>
             <tr style={styles.thead}>
-              {['Nº Pedido', 'Fornecedor', 'Origem', 'Status', 'Data Pedido', 'Prev. Chegada', 'Valor Total', 'Rastreio', 'Ações'].map(h => (
+              {['Nº Pedido', 'Fornecedor', 'Origem', 'Status', 'Data Pedido', 'Prev. Chegada', 'Valor Total', 'Produtos', 'Rastreio', 'Ações'].map(h => (
                 <th key={h} style={styles.th}>{h}</th>
               ))}
             </tr>
@@ -117,7 +154,18 @@ export default function OrdersPage() {
                 <td style={styles.td}>{toDateInput(o.orderDate) || '—'}</td>
                 <td style={styles.td}>{toDateInput(o.expectedArrival) || '—'}</td>
                 <td style={styles.td}>{o.currency} {Number(o.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td style={styles.td}>{o.trackingCode || '—'}</td>
+                <td style={styles.td}>
+                  {o.items?.length
+                    ? <span style={styles.itemsBadge}>{o.items.length} {o.items.length === 1 ? 'produto' : 'produtos'}</span>
+                    : <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>—</span>}
+                </td>
+                <td style={styles.td}>
+                  {parseCodes(o.trackingCode).length > 0
+                    ? parseCodes(o.trackingCode).map(c => (
+                        <span key={c} style={styles.trackChip}>{c}</span>
+                      ))
+                    : '—'}
+                </td>
                 <td style={styles.td}>
                   <button onClick={() => openEdit(o)} style={styles.btnEdit}>Editar</button>
                   <button onClick={() => handleDelete(o.id)} style={styles.btnDel}>Remover</button>
@@ -151,9 +199,88 @@ export default function OrdersPage() {
               <div style={styles.field}><label style={styles.label}>Moeda</label><input value={form.currency || 'USD'} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} style={styles.input} /></div>
               <div style={styles.field}><label style={styles.label}>Taxa de Câmbio</label><input type="number" step="0.0001" value={form.exchangeRate || 1} onChange={e => setForm(f => ({ ...f, exchangeRate: Number(e.target.value) }))} style={styles.input} /></div>
               <div style={styles.field}><label style={styles.label}>Nº da Invoice</label><input value={form.invoiceNumber || ''} onChange={e => setForm(f => ({ ...f, invoiceNumber: e.target.value }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Código de Rastreio</label><input value={form.trackingCode || ''} onChange={e => setForm(f => ({ ...f, trackingCode: e.target.value }))} style={styles.input} /></div>
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>Códigos de Rastreio</label>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <input
+                  value={trackingInput}
+                  onChange={e => setTrackingInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTrackingCode(); } }}
+                  placeholder="Digite o código e pressione Enter ou clique em Adicionar"
+                  style={{ ...styles.input, flex: 1 }}
+                />
+                <button type="button" onClick={addTrackingCode} style={styles.btnAdd}>Adicionar</button>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {parseCodes(form.trackingCode).map(c => (
+                  <span key={c} style={styles.trackChipEdit}>
+                    {c}
+                    <button type="button" onClick={() => removeTrackingCode(c)} style={styles.trackRemove}>×</button>
+                  </span>
+                ))}
+              </div>
             </div>
             <div style={styles.field}><label style={styles.label}>Observações</label><textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} style={{ ...styles.input, height: 70, resize: 'vertical' }} /></div>
+
+            {/* Itens do Pedido */}
+            <div style={{ marginTop: 20 }}>
+              <div style={styles.sectionDivider}>Itens do Pedido</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
+                <div style={styles.field}>
+                  <label style={styles.label}>Produto *</label>
+                  <select value={itemDraft.productId} onChange={e => { const p = products.find(x => x.id === Number(e.target.value)); setItemDraft(d => ({ ...d, productId: Number(e.target.value), unitPrice: p ? Number(p.costPrice) : d.unitPrice })); }} style={styles.input}>
+                    <option value={0}>Selecione...</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+                  </select>
+                </div>
+                <div style={styles.field}>
+                  <label style={styles.label}>Quantidade</label>
+                  <input type="number" min={0.001} step={0.001} value={itemDraft.quantity} onChange={e => setItemDraft(d => ({ ...d, quantity: Number(e.target.value) }))} style={styles.input} />
+                </div>
+                <div style={styles.field}>
+                  <label style={styles.label}>Preço Unit.</label>
+                  <input type="number" min={0} step={0.01} value={itemDraft.unitPrice} onChange={e => setItemDraft(d => ({ ...d, unitPrice: Number(e.target.value) }))} style={styles.input} />
+                </div>
+                <button type="button" onClick={addItem} style={{ ...styles.btnAdd, alignSelf: 'flex-end' }}>+ Adicionar</button>
+              </div>
+              {items.length > 0 && (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 4 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-thead)' }}>
+                      <th style={styles.itemTh}>Produto</th>
+                      <th style={{ ...styles.itemTh, textAlign: 'right' }}>Qtd</th>
+                      <th style={{ ...styles.itemTh, textAlign: 'right' }}>Preço Unit.</th>
+                      <th style={{ ...styles.itemTh, textAlign: 'right' }}>Total</th>
+                      <th style={styles.itemTh}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item, i) => {
+                      const prod = products.find(p => p.id === item.productId);
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-row)' }}>
+                          <td style={styles.itemTd}>{prod ? `${prod.name} (${prod.sku})` : `ID ${item.productId}`}</td>
+                          <td style={{ ...styles.itemTd, textAlign: 'right' }}>{Number(item.quantity).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}</td>
+                          <td style={{ ...styles.itemTd, textAlign: 'right' }}>{Number(item.unitPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          <td style={{ ...styles.itemTd, textAlign: 'right', fontWeight: 700 }}>{(Number(item.quantity) * Number(item.unitPrice)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          <td style={{ ...styles.itemTd, textAlign: 'center' }}>
+                            <button type="button" onClick={() => removeItem(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 14, fontWeight: 700 }}>×</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr style={{ background: 'var(--bg-thead)' }}>
+                      <td colSpan={3} style={{ ...styles.itemTd, fontWeight: 700, textAlign: 'right' }}>Total dos Itens:</td>
+                      <td style={{ ...styles.itemTd, textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
+                        {items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
             <div style={styles.modalFooter}>
               <button onClick={() => setModal(false)} style={styles.btnCancel}>Cancelar</button>
               <button onClick={handleSave} style={styles.btnPrimary}>Salvar</button>
@@ -192,5 +319,12 @@ const styles: Record<string, React.CSSProperties> = {
   label: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' },
   input: { padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-body)' },
   modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 },
+  itemsBadge: { background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700 },
+  sectionDivider: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: 8, marginBottom: 12 },
+  itemTh: { padding: '6px 8px', textAlign: 'left' as const, color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border)' },
+  itemTd: { padding: '6px 8px', color: 'var(--text-body)' },
+  trackChipEdit: { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#eff6ff', color: '#2563eb', padding: '3px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 },
+  trackRemove: { background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: 0 },
+  btnAdd: { padding: '8px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' },
   btnCancel: { padding: '9px 18px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
 };
