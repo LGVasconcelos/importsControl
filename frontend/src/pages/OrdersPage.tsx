@@ -41,7 +41,7 @@ export default function OrdersPage() {
     if (currency === 'BRL') { setForm(f => ({ ...f, currency, exchangeRate: 1 })); return; }
     setFetchingRate(true);
     try {
-      const res = await fetch(`https://api.frankfurter.app/latest?from=${currency}&to=BRL`);
+      const res = await fetch(`https://open.er-api.com/v6/latest/${currency}`);
       const data = await res.json();
       const rate = data.rates?.BRL;
       if (rate) {

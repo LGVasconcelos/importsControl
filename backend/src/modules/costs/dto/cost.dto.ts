@@ -1,22 +1,25 @@
 import { IsNumber, IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
+
+const toNum = ({ value }: { value: any }) => Number(value);
 
 export class CreateCostDto {
-  @IsNumber()
+  @Transform(toNum) @IsNumber()
   orderId: number;
 
   @IsString() @IsNotEmpty()
   description: string;
 
-  @IsNumber()
+  @Transform(toNum) @IsNumber()
   value: number;
 
   @IsOptional() @IsString()
   currency?: string;
 
-  @IsOptional() @IsNumber()
+  @IsOptional() @Transform(toNum) @IsNumber()
   exchangeRate?: number;
 
-  @IsOptional() @IsNumber()
+  @IsOptional() @Transform(toNum) @IsNumber()
   valueInBrl?: number;
 
   @IsOptional() @IsString()
