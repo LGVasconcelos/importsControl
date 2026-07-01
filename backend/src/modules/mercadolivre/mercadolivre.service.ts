@@ -182,19 +182,24 @@ export class MercadoLivreService {
     const userId = tokenRecord?.mlUserId;
     if (!userId) throw new Error('Não conectado ao Mercado Livre');
 
-    // 1. Busca todos os item IDs do vendedor
+    // 1. Busca todos os item IDs do vendedor (todos os status)
     const allItemIds: string[] = [];
-    let offset = 0;
-    const limit = 50;
-    while (true) {
-      const res = await fetch(`${ML_API}/users/${userId}/items/search?limit=${limit}&offset=${offset}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const data = await res.json() as any;
-      const ids: string[] = data.results || [];
-      allItemIds.push(...ids);
-      if (ids.length < limit) break;
-      offset += limit;
+    const statusList = ['active', 'paused', 'closed', 'under_review'];
+    for (const status of statusList) {
+      let offset = 0;
+      const limit = 50;
+      while (true) {
+        const res = await fetch(`${ML_API}/users/${userId}/items/search?limit=${limit}&offset=${offset}&status=${status}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json() as any;
+        const ids: string[] = data.results || [];
+        for (const id of ids) {
+          if (!allItemIds.includes(id)) allItemIds.push(id);
+        }
+        if (ids.length < limit) break;
+        offset += limit;
+      }
     }
 
     // 2. Carrega produtos locais indexados por SKU (case-insensitive)
@@ -203,12 +208,12 @@ export class MercadoLivreService {
 
     let linked = 0, skipped = 0;
     const notFound: string[] = [];
-    const debug: string[] = [];
+    const debug: string[] = [`Total de anúncios encontrados no ML: ${allItemIds.length}`];
 
-    // 3. Busca detalhes dos anúncios em lotes de 20
+    // 3. Busca detalhes dos anúncios em lotes de 20 (sem filtro de campos para garantir tudo)
     for (let i = 0; i < allItemIds.length; i += 20) {
       const batch = allItemIds.slice(i, i + 20);
-      const res = await fetch(`${ML_API}/items?ids=${batch.join(',')}&attributes=id,title,seller_sku,seller_custom_field,attributes,variations`, {
+      const res = await fetch(`${ML_API}/items?ids=${batch.join(',')}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const items = await res.json() as any[];
