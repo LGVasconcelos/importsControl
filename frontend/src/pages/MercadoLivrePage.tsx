@@ -11,6 +11,7 @@ export default function MercadoLivrePage() {
   const [nickname, setNickname] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [mlIds, setMlIds] = useState<Record<number, string>>({});
+  const [mlInputs, setMlInputs] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
@@ -48,13 +49,28 @@ export default function MercadoLivrePage() {
     toast.success('Desconectado');
   };
 
-  const handleSaveMlId = async (product: Product) => {
+  const parseIds = (v?: string) => v ? v.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const addMlId = async (product: Product) => {
+    const code = (mlInputs[product.id] || '').trim().toUpperCase();
+    if (!code) return;
+    const existing = parseIds(mlIds[product.id]);
+    if (existing.includes(code)) { toast.error('Código já vinculado'); return; }
+    const updated = [...existing, code].join(', ');
+    setMlIds(m => ({ ...m, [product.id]: updated }));
+    setMlInputs(m => ({ ...m, [product.id]: '' }));
     try {
-      await productsService.update(product.id, { mlItemId: mlIds[product.id] || '' });
-      toast.success(`MLB vinculado ao produto ${product.sku}`);
-    } catch {
-      toast.error('Erro ao salvar');
-    }
+      await productsService.update(product.id, { mlItemId: updated });
+      toast.success(`${code} vinculado ao produto ${product.sku}`);
+    } catch { toast.error('Erro ao salvar'); }
+  };
+
+  const removeMlId = async (product: Product, code: string) => {
+    const updated = parseIds(mlIds[product.id]).filter(c => c !== code).join(', ');
+    setMlIds(m => ({ ...m, [product.id]: updated }));
+    try {
+      await productsService.update(product.id, { mlItemId: updated });
+    } catch { toast.error('Erro ao remover'); }
   };
 
   const handleSyncAll = async () => {
@@ -115,8 +131,10 @@ export default function MercadoLivrePage() {
       {connected && (
         <>
           <p style={styles.hint}>
-            Vincule cada produto ao código MLB do anúncio (ex: MLB3499804579353115).
-            Ao sincronizar, a quantidade disponível no anúncio será atualizada com o estoque atual do sistema.
+            Vincule cada produto aos anúncios do Mercado Livre. Digite o código MLB e pressione Enter ou "+".
+            Você pode adicionar múltiplos anúncios por produto.
+            Para anúncios com variação (cor, tamanho etc.), use o formato <strong>MLB123456789:VARIATION_ID</strong> —
+            o Variation ID aparece na URL do anúncio ou na API do ML.
           </p>
           <div style={styles.tableWrap}>
             {loading ? (
@@ -141,16 +159,27 @@ export default function MercadoLivrePage() {
                         </span>
                       </td>
                       <td style={styles.td}>
-                        <input
-                          value={mlIds[p.id] || ''}
-                          onChange={e => setMlIds(m => ({ ...m, [p.id]: e.target.value }))}
-                          placeholder="MLB000000000"
-                          style={styles.mlInput}
-                        />
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                          {parseIds(mlIds[p.id]).map(code => (
+                            <span key={code} style={styles.mlChip}>
+                              {code}
+                              <button onClick={() => removeMlId(p, code)} style={styles.mlChipRemove}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <input
+                            value={mlInputs[p.id] || ''}
+                            onChange={e => setMlInputs(m => ({ ...m, [p.id]: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addMlId(p); } }}
+                            placeholder="MLB000000000"
+                            style={styles.mlInput}
+                          />
+                          <button onClick={() => addMlId(p)} style={styles.btnAdd}>+</button>
+                        </div>
                       </td>
                       <td style={styles.td}>
-                        <button onClick={() => handleSaveMlId(p)} style={styles.btnSave}>Salvar</button>
-                        {mlIds[p.id] && (
+                        {parseIds(mlIds[p.id]).length > 0 && (
                           <button onClick={() => handleSyncOne(p.id, p.sku)} style={styles.btnSyncOne}>
                             Sincronizar
                           </button>
@@ -186,7 +215,10 @@ const styles: Record<string, React.CSSProperties> = {
   td: { padding: '11px 14px', fontSize: 13, color: 'var(--text-body)' },
   sku: { background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 700 },
   stockBadge: { padding: '3px 8px', borderRadius: 20, fontSize: 12, fontWeight: 600 },
-  mlInput: { padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, width: 180, background: 'var(--bg-input)', color: 'var(--text-body)' },
+  mlInput: { padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 12, width: 140, background: 'var(--bg-input)', color: 'var(--text-body)' },
+  mlChip: { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#ffe600', color: '#333', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700 },
+  mlChipRemove: { background: 'none', border: 'none', cursor: 'pointer', color: '#555', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: 0 },
+  btnAdd: { padding: '6px 10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
   empty: { padding: 40, textAlign: 'center', color: 'var(--text-secondary)' },
   btnML: { padding: '9px 20px', background: '#ffe600', color: '#333', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
   btnSync: { padding: '9px 18px', background: '#ffe600', color: '#333', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },

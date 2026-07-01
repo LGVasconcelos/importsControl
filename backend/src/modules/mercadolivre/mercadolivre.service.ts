@@ -131,20 +131,48 @@ export class MercadoLivreService {
     return token.accessToken;
   }
 
+  // Faz o PUT correto dependendo se é anúncio simples ou com variação
+  // Formato simples:    MLB123456789
+  // Formato variação:   MLB123456789:VARIATION_ID
+  private async updateMlItemStock(mlEntry: string, quantity: number, accessToken: string): Promise<{ ok: boolean; label: string; error?: string }> {
+    const [itemId, variationId] = mlEntry.split(':').map(s => s.trim());
+    const label = variationId ? `${itemId} (var. ${variationId})` : itemId;
+
+    let body: any;
+    if (variationId) {
+      body = { variations: [{ id: Number(variationId), available_quantity: quantity }] };
+    } else {
+      body = { available_quantity: quantity };
+    }
+
+    const res = await fetch(`${ML_API}/items/${itemId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json() as any;
+    if (!res.ok) return { ok: false, label, error: data.message || 'Erro na API ML' };
+    return { ok: true, label };
+  }
+
   async syncProductStock(productId: number): Promise<{ ok: boolean; message: string }> {
     const product = await this.productRepo.findOne({ where: { id: productId } });
     if (!product) return { ok: false, message: 'Produto não encontrado' };
     if (!product.mlItemId) return { ok: false, message: 'Produto sem MLB vinculado' };
 
+    const ids = product.mlItemId.split(',').map(s => s.trim()).filter(Boolean);
     const accessToken = await this.getValidToken();
-    const res = await fetch(`${ML_API}/items/${product.mlItemId}`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ available_quantity: product.currentStock }),
-    });
-    const data = await res.json() as any;
-    if (!res.ok) return { ok: false, message: data.message || 'Erro na API do ML' };
-    return { ok: true, message: `Estoque do anúncio ${product.mlItemId} atualizado para ${product.currentStock}` };
+    const results: string[] = [];
+    const errors: string[] = [];
+
+    for (const entry of ids) {
+      const r = await this.updateMlItemStock(entry, product.currentStock, accessToken);
+      if (r.ok) results.push(r.label);
+      else errors.push(`${r.label}: ${r.error}`);
+    }
+
+    if (errors.length) return { ok: false, message: errors.join(' | ') };
+    return { ok: true, message: `${results.length} anúncio(s) atualizados para ${product.currentStock} unidades` };
   }
 
   async syncAllStock(): Promise<{ synced: number; skipped: number; errors: string[] }> {
@@ -175,8 +203,20 @@ export class MercadoLivreService {
 
     for (const item of (order.order_items || [])) {
       const mlItemId: string = item?.item?.id;
+      const variationId: string | undefined = item?.variation_id ? String(item.variation_id) : undefined;
       if (!mlItemId) continue;
-      const product = await this.productRepo.findOne({ where: { mlItemId } });
+
+      // Monta a chave de busca: "MLB123" ou "MLB123:VAR_ID"
+      const searchKey = variationId ? `${mlItemId}:${variationId}` : mlItemId;
+
+      const allProducts = await this.productRepo.find({ where: { active: true } });
+      const product = allProducts.find(p => {
+        if (!p.mlItemId) return false;
+        return p.mlItemId.split(',').map(s => s.trim()).some(entry => {
+          // Match exato (com ou sem variação) ou match só pelo itemId
+          return entry === searchKey || entry === mlItemId || entry.startsWith(`${mlItemId}:`);
+        });
+      });
       if (!product) continue;
 
       const qty = Math.round(Number(item.quantity));
