@@ -67,4 +67,22 @@ export class MercadoLivreController {
   getVariations(@Param('itemId') itemId: string) {
     return this.mlService.getItemVariations(itemId);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('sync-stock/:productId/auto')
+  syncOneWithAutoPause(@Param('productId', ParseIntPipe) productId: number) {
+    return this.mlService.syncProductStockWithAutoPause(productId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('listing-status/:productId')
+  getListingStatus(@Param('productId', ParseIntPipe) productId: number) {
+    return this.mlService.getListingStatus(productId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('divergences')
+  getDivergences() {
+    return this.mlService.checkStockDivergences();
+  }
 }

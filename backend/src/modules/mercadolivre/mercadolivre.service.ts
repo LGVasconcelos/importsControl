@@ -375,37 +375,135 @@ export class MercadoLivreService {
     const orderRes = await fetch(`${ML_API}/orders/${orderId}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    const order = await orderRes.json() as any;
-    if (order.status !== 'paid') return;
+    const mlOrder = await orderRes.json() as any;
+    if (mlOrder.status !== 'paid') return;
 
-    for (const item of (order.order_items || [])) {
+    const mlOrderRef = `ML-${orderId}`;
+    const allProducts = await this.productRepo.find({ where: { active: true } });
+
+    for (const item of (mlOrder.order_items || [])) {
       const mlItemId: string = item?.item?.id;
       const variationId: string | undefined = item?.variation_id ? String(item.variation_id) : undefined;
       if (!mlItemId) continue;
 
-      // Monta a chave de busca: "MLB123" ou "MLB123:VAR_ID"
       const searchKey = variationId ? `${mlItemId}:${variationId}` : mlItemId;
 
-      const allProducts = await this.productRepo.find({ where: { active: true } });
       const product = allProducts.find(p => {
         if (!p.mlItemId) return false;
-        return p.mlItemId.split(',').map(s => s.trim()).some(entry => {
-          // Match exato (com ou sem variação) ou match só pelo itemId
-          return entry === searchKey || entry === mlItemId || entry.startsWith(`${mlItemId}:`);
-        });
+        return p.mlItemId.split(',').map(s => s.trim()).some(entry =>
+          entry === searchKey || entry === mlItemId || entry.startsWith(`${mlItemId}:`),
+        );
       });
       if (!product) continue;
 
       const qty = Math.round(Number(item.quantity));
       if (qty <= 0) continue;
 
+      // Baixa estoque
       await this.stockService.createMovement({
         productId: product.id,
         type: MovementType.EXIT,
         quantity: qty,
         reason: `Venda Mercado Livre - Pedido #${orderId}`,
-        orderReference: `ML-${orderId}`,
+        orderReference: mlOrderRef,
       }, 0).catch(() => {});
+
+      // Após baixa, auto-pausa se estoque chegou a 0
+      const updatedProduct = await this.productRepo.findOne({ where: { id: product.id } });
+      if (updatedProduct && updatedProduct.currentStock <= 0) {
+        await this.pauseProductListings(updatedProduct, accessToken).catch(() => {});
+      }
     }
+  }
+
+  /** Pausa todos os anúncios ML de um produto */
+  private async pauseProductListings(product: Product, accessToken: string): Promise<void> {
+    const ids = (product.mlItemId || '').split(',').map(s => s.trim()).filter(Boolean);
+    for (const entry of ids) {
+      const [itemId] = entry.split(':');
+      await fetch(`${ML_API}/items/${itemId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paused' }),
+      }).catch(() => {});
+    }
+  }
+
+  /** Reativa todos os anúncios ML de um produto */
+  private async activateProductListings(product: Product, accessToken: string): Promise<void> {
+    const ids = (product.mlItemId || '').split(',').map(s => s.trim()).filter(Boolean);
+    for (const entry of ids) {
+      const [itemId] = entry.split(':');
+      await fetch(`${ML_API}/items/${itemId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      }).catch(() => {});
+    }
+  }
+
+  /** Sincroniza estoque de um produto e pausa/reativa anúncios conforme necessário */
+  async syncProductStockWithAutoPause(productId: number): Promise<{ ok: boolean; message: string }> {
+    const product = await this.productRepo.findOne({ where: { id: productId } });
+    if (!product) return { ok: false, message: 'Produto não encontrado' };
+    if (!product.mlItemId) return { ok: false, message: 'Produto sem MLB vinculado' };
+
+    const accessToken = await this.getValidToken();
+
+    // Auto-pausa ou reativa com base no estoque
+    if (product.currentStock <= 0) {
+      await this.pauseProductListings(product, accessToken);
+    } else {
+      await this.activateProductListings(product, accessToken);
+    }
+
+    return this.syncProductStock(productId);
+  }
+
+  /** Busca status e estoque atual de todos os anúncios de um produto no ML */
+  async getListingStatus(productId: number): Promise<{ entry: string; itemId: string; variationId?: string; status: string; mlStock: number; localStock: number; divergence: boolean }[]> {
+    const product = await this.productRepo.findOne({ where: { id: productId } });
+    if (!product || !product.mlItemId) return [];
+
+    const accessToken = await this.getValidToken();
+    const entries = product.mlItemId.split(',').map(s => s.trim()).filter(Boolean);
+    const result: { entry: string; itemId: string; variationId?: string; status: string; mlStock: number; localStock: number; divergence: boolean }[] = [];
+
+    for (const entry of entries) {
+      const [itemId, variationId] = entry.split(':');
+      try {
+        const res = await fetch(`${ML_API}/items/${itemId}?attributes=id,status,available_quantity,variations`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json() as any;
+        let mlStock = 0;
+        if (variationId) {
+          const v = (data.variations || []).find((x: any) => String(x.id) === variationId);
+          mlStock = v?.available_quantity ?? 0;
+        } else {
+          mlStock = data.available_quantity ?? 0;
+        }
+        const divergence = mlStock !== product.currentStock;
+        result.push({ entry, itemId, variationId, status: data.status || 'unknown', mlStock, localStock: product.currentStock, divergence });
+      } catch {
+        result.push({ entry, itemId, variationId, status: 'error', mlStock: -1, localStock: product.currentStock, divergence: true });
+      }
+    }
+    return result;
+  }
+
+  /** Verifica divergências de estoque em todos os produtos vinculados */
+  async checkStockDivergences(): Promise<{ sku: string; productId: number; divergences: { entry: string; mlStock: number; localStock: number }[] }[]> {
+    const products = await this.productRepo.find({ where: { active: true } });
+    const result: { sku: string; productId: number; divergences: { entry: string; mlStock: number; localStock: number }[] }[] = [];
+    for (const p of products) {
+      if (!p.mlItemId) continue;
+      const listings = await this.getListingStatus(p.id);
+      const divs = listings.filter(l => l.divergence && l.mlStock >= 0);
+      if (divs.length > 0) {
+        result.push({ sku: p.sku, productId: p.id, divergences: divs.map(d => ({ entry: d.entry, mlStock: d.mlStock, localStock: d.localStock })) });
+      }
+    }
+    return result;
   }
 }

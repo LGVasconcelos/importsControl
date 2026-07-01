@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mercadolivreService } from '../services/mercadolivre.service';
-import type { MlVariation } from '../services/mercadolivre.service';
+import type { MlVariation, MlListingStatus, MlDivergence } from '../services/mercadolivre.service';
 import { productsService } from '../services/products.service';
 import type { Product } from '../services/products.service';
 import toast from 'react-hot-toast';
@@ -19,6 +19,13 @@ export default function MercadoLivrePage() {
 
   // Modal de anúncios por produto
   const [mlModal, setMlModal] = useState<Product | null>(null);
+  const [listingStatus, setListingStatus] = useState<MlListingStatus[]>([]);
+  const [statusLoading, setStatusLoading] = useState(false);
+
+  // Painel de divergências
+  const [divergences, setDivergences] = useState<MlDivergence[]>([]);
+  const [divLoading, setDivLoading] = useState(false);
+  const [divChecked, setDivChecked] = useState(false);
 
   // Modal de variações
   const [varModal, setVarModal] = useState(false);
@@ -112,11 +119,40 @@ export default function MercadoLivrePage() {
 
   const handleSyncOne = async (productId: number, sku: string) => {
     try {
-      const r = await mercadolivreService.syncProduct(productId);
+      const r = await mercadolivreService.syncProductWithAutoPause(productId);
       if (r.ok) toast.success(r.message);
       else toast.error(`${sku}: ${r.message}`, { duration: 8000 });
     } catch (e: any) {
       toast.error(`Erro ao sincronizar ${sku}: ${e?.response?.data?.message || e?.message || 'desconhecido'}`);
+    }
+  };
+
+  const openMlModal = async (p: Product) => {
+    setMlModal(p);
+    setListingStatus([]);
+    if (mlIds[p.id]) {
+      setStatusLoading(true);
+      try {
+        const status = await mercadolivreService.getListingStatus(p.id);
+        setListingStatus(status);
+      } catch { /* silencia */ } finally {
+        setStatusLoading(false);
+      }
+    }
+  };
+
+  const handleCheckDivergences = async () => {
+    setDivLoading(true);
+    try {
+      const divs = await mercadolivreService.getDivergences();
+      setDivergences(divs);
+      setDivChecked(true);
+      if (divs.length === 0) toast.success('Nenhuma divergência de estoque encontrada!');
+      else toast.error(`${divs.length} produto(s) com divergência de estoque`);
+    } catch (e: any) {
+      toast.error(`Erro: ${e?.response?.data?.message || e?.message}`);
+    } finally {
+      setDivLoading(false);
     }
   };
 
@@ -168,6 +204,9 @@ export default function MercadoLivrePage() {
               {autoLinking ? 'Vinculando...' : '🔗 Auto-vincular por SKU'}
             </button>
             <button onClick={openVarModal} style={styles.btnVar}>🔍 Ver Variações</button>
+            <button onClick={handleCheckDivergences} disabled={divLoading} style={styles.btnDiv}>
+              {divLoading ? 'Verificando...' : '⚠️ Divergências'}
+            </button>
             <button onClick={handleSyncAll} disabled={syncing} style={styles.btnSync}>
               {syncing ? 'Sincronizando...' : 'Sincronizar Todo Estoque'}
             </button>
@@ -203,6 +242,32 @@ export default function MercadoLivrePage() {
             Clique <strong>Auto-vincular por SKU</strong> para vincular automaticamente os anúncios do ML.
             O campo "Código do anúncio (SKU)" de cada anúncio no ML deve ser igual ao SKU cadastrado aqui.
           </p>
+
+          {/* Painel de divergências */}
+          {divChecked && (
+            <div style={{ marginBottom: 20 }}>
+              {divergences.length === 0 ? (
+                <div style={styles.divNone}>✅ Estoque sincronizado — nenhuma divergência encontrada</div>
+              ) : (
+                <div style={styles.divPanel}>
+                  <div style={styles.divHeader}>⚠️ {divergences.length} produto(s) com estoque divergente no ML</div>
+                  {divergences.map(d => (
+                    <div key={d.productId} style={styles.divRow}>
+                      <span style={styles.sku}>{d.sku}</span>
+                      <div style={{ marginLeft: 12, flex: 1 }}>
+                        {d.divergences.map(div => (
+                          <span key={div.entry} style={{ fontSize: 12, marginRight: 12, color: 'var(--text-body)' }}>
+                            {div.entry}: ML={div.mlStock} vs Local={div.localStock}
+                          </span>
+                        ))}
+                      </div>
+                      <button onClick={() => handleSyncOne(d.productId, d.sku)} style={styles.btnSyncOne}>Corrigir</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div style={styles.tableWrap}>
             {loading ? (
               <div style={styles.empty}>Carregando...</div>
@@ -228,7 +293,7 @@ export default function MercadoLivrePage() {
                           </span>
                         </td>
                         <td style={styles.td}>
-                          <button onClick={() => setMlModal(p)} style={ids.length > 0 ? styles.mlBadgeBtn : styles.mlBadgeBtnEmpty}>
+                          <button onClick={() => openMlModal(p)} style={ids.length > 0 ? styles.mlBadgeBtn : styles.mlBadgeBtnEmpty}>
                             {ids.length > 0 ? `🔗 ${ids.length} anúncio${ids.length > 1 ? 's' : ''}` : '+ Vincular'}
                           </button>
                         </td>
@@ -275,11 +340,25 @@ export default function MercadoLivrePage() {
               <div style={{ marginBottom: 16 }}>
                 {parseIds(mlIds[modalProduct.id]).map(code => {
                   const [itemId, varId] = code.split(':');
+                  const st = listingStatus.find(s => s.entry === code);
+                  const statusColor: Record<string, string> = { active: '#16a34a', paused: '#d97706', closed: '#dc2626', unknown: '#6b7280', error: '#dc2626' };
+                  const statusLabel: Record<string, string> = { active: 'ativo', paused: 'pausado', closed: 'encerrado', unknown: '?', error: 'erro' };
                   return (
                     <div key={code} style={styles.mlRow}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <span style={styles.mlChip}>{itemId}</span>
                         {varId && <span style={styles.varChip}>var. {varId}</span>}
+                        {statusLoading && !st && <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 6 }}>...</span>}
+                        {st && (
+                          <span style={{ marginLeft: 8, fontSize: 11, color: statusColor[st.status] || '#6b7280', fontWeight: 600 }}>
+                            ● {statusLabel[st.status] || st.status}
+                            {' · '}
+                            <span style={{ color: st.divergence ? '#dc2626' : 'inherit' }}>
+                              ML: {st.mlStock}
+                            </span>
+                            {st.divergence && <span style={{ color: '#dc2626' }}> ≠ Local: {st.localStock}</span>}
+                          </span>
+                        )}
                       </div>
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                         <button onClick={() => { navigator.clipboard.writeText(code); toast.success('Copiado!'); }} style={styles.btnCopy}>
@@ -320,12 +399,12 @@ export default function MercadoLivrePage() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
               {parseIds(mlIds[modalProduct.id]).length > 0 && (
-                <button onClick={() => { handleSyncOne(modalProduct.id, modalProduct.sku); setMlModal(null); }} style={styles.btnSyncOne}>
+                <button onClick={() => { handleSyncOne(modalProduct.id, modalProduct.sku); setMlModal(null); setListingStatus([]); }} style={styles.btnSyncOne}>
                   ↑ Sincronizar estoque agora
                 </button>
               )}
               <div style={{ marginLeft: 'auto' }}>
-                <button onClick={() => setMlModal(null)} style={styles.btnDanger}>Fechar</button>
+                <button onClick={() => { setMlModal(null); setListingStatus([]); }} style={styles.btnDanger}>Fechar</button>
               </div>
             </div>
           </div>
@@ -418,8 +497,13 @@ const styles: Record<string, React.CSSProperties> = {
   btnSyncOne: { padding: '5px 12px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnVar: { padding: '9px 14px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: '1.5px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
   btnAutoLink: { padding: '9px 16px', background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #bbf7d0', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
+  btnDiv: { padding: '9px 14px', background: '#fffbeb', color: '#92400e', border: '1.5px solid #fde68a', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
   closeBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-secondary)', lineHeight: 1, padding: 4 },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
   modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 },
+  divPanel: { background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 10, padding: '12px 16px' },
+  divHeader: { fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 10 },
+  divRow: { display: 'flex', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #fde68a', gap: 8 },
+  divNone: { background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#166534', fontWeight: 600 },
 };
