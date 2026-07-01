@@ -15,6 +15,7 @@ export default function MercadoLivrePage() {
   const [mlInputs, setMlInputs] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [autoLinking, setAutoLinking] = useState(false);
   const [varModal, setVarModal] = useState(false);
   const [varItemInput, setVarItemInput] = useState('');
   const [varLoading, setVarLoading] = useState(false);
@@ -114,6 +115,20 @@ export default function MercadoLivrePage() {
 
   const openVarModal = () => { setVarModal(true); setVarItemInput(''); setVariations([]); setVarError(''); };
 
+  const handleAutoLink = async () => {
+    setAutoLinking(true);
+    try {
+      const r = await mercadolivreService.autoLink();
+      toast.success(`Vinculados: ${r.linked} | Sem SKU no ML: ${r.skipped}`, { duration: 6000 });
+      if (r.notFound.length) toast.error(`SKUs não encontrados:\n${r.notFound.slice(0, 5).join('\n')}`, { duration: 8000 });
+      await load();
+    } catch (e: any) {
+      toast.error(`Erro: ${e?.response?.data?.message || e?.message || 'desconhecido'}`);
+    } finally {
+      setAutoLinking(false);
+    }
+  };
+
   const handleFetchVariations = async () => {
     const raw = varItemInput.trim().toUpperCase();
     if (!raw) return;
@@ -138,6 +153,9 @@ export default function MercadoLivrePage() {
         <h1 style={styles.title}>🛒 Mercado Livre</h1>
         {connected && (
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleAutoLink} disabled={autoLinking} style={styles.btnAutoLink}>
+              {autoLinking ? 'Vinculando...' : '🔗 Auto-vincular por SKU'}
+            </button>
             <button onClick={openVarModal} style={styles.btnVar}>🔍 Ver Variações</button>
             <button onClick={handleSyncAll} disabled={syncing} style={styles.btnSync}>
               {syncing ? 'Sincronizando...' : 'Sincronizar Todo Estoque'}
@@ -171,10 +189,9 @@ export default function MercadoLivrePage() {
       {connected && (
         <>
           <p style={styles.hint}>
-            Vincule cada produto aos anúncios do Mercado Livre. Digite o código MLB e pressione Enter ou "+".
-            Você pode adicionar múltiplos anúncios por produto.
-            Para anúncios com variação (cor, tamanho etc.), use o formato <strong>MLB123456789:VARIATION_ID</strong> —
-            o Variation ID aparece na URL do anúncio ou na API do ML.
+            Clique <strong>Auto-vincular por SKU</strong> para vincular automaticamente os anúncios do ML aos produtos usando o SKU.
+            Para isso, o campo "Código do anúncio (SKU)" de cada anúncio no ML deve estar preenchido com o mesmo SKU cadastrado aqui.
+            Você também pode vincular manualmente digitando o código MLB abaixo.
           </p>
           <div style={styles.tableWrap}>
             {loading ? (
@@ -315,6 +332,7 @@ const styles: Record<string, React.CSSProperties> = {
   btnSave: { marginRight: 6, padding: '5px 10px', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnSyncOne: { padding: '5px 10px', background: '#f0fdf4', color: '#16a34a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnVar: { padding: '9px 14px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: '1.5px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
+  btnAutoLink: { padding: '9px 16px', background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #bbf7d0', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
   modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto' },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 },

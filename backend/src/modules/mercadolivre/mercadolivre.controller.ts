@@ -45,6 +45,12 @@ export class MercadoLivreController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('auto-link')
+  autoLink() {
+    return this.mlService.autoLinkBySku();
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('sync-stock')
   syncAll() {
     return this.mlService.syncAllStock();

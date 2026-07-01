@@ -155,6 +155,88 @@ export class MercadoLivreService {
     return { ok: true, label };
   }
 
+  private async addMlIdToProduct(product: Product, code: string): Promise<void> {
+    const existing = product.mlItemId?.split(',').map(s => s.trim()).filter(Boolean) || [];
+    if (existing.includes(code)) return;
+    const updated = [...existing, code].join(', ');
+    await this.productRepo.update(product.id, { mlItemId: updated });
+    // Atualiza o objeto em memória para uso posterior
+    product.mlItemId = updated;
+  }
+
+  async autoLinkBySku(): Promise<{ linked: number; skipped: number; notFound: string[] }> {
+    const accessToken = await this.getValidToken();
+    const tokenRecord = await this.tokenRepo.findOne({ where: {} });
+    const userId = tokenRecord?.mlUserId;
+    if (!userId) throw new Error('Não conectado ao Mercado Livre');
+
+    // 1. Busca todos os item IDs do vendedor
+    const allItemIds: string[] = [];
+    let offset = 0;
+    const limit = 50;
+    while (true) {
+      const res = await fetch(`${ML_API}/users/${userId}/items/search?limit=${limit}&offset=${offset}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await res.json() as any;
+      const ids: string[] = data.results || [];
+      allItemIds.push(...ids);
+      if (ids.length < limit) break;
+      offset += limit;
+    }
+
+    // 2. Carrega produtos locais indexados por SKU (case-insensitive)
+    const products = await this.productRepo.find({ where: { active: true } });
+    const skuMap = new Map(products.map(p => [p.sku.toUpperCase(), p]));
+
+    let linked = 0, skipped = 0;
+    const notFound: string[] = [];
+
+    // 3. Busca detalhes dos anúncios em lotes de 20
+    for (let i = 0; i < allItemIds.length; i += 20) {
+      const batch = allItemIds.slice(i, i + 20);
+      const res = await fetch(`${ML_API}/items?ids=${batch.join(',')}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const items = await res.json() as any[];
+      if (!Array.isArray(items)) continue;
+
+      for (const wrapper of items) {
+        if (wrapper.code !== 200) continue;
+        const item = wrapper.body;
+        if (!item) continue;
+        const itemId: string = item.id;
+
+        if (item.variations?.length) {
+          // Anúncio com variações — tenta vincular cada variação pelo seu seller_sku
+          let anyLinked = false;
+          for (const variation of item.variations) {
+            const varSku: string | undefined =
+              variation.seller_sku ||
+              variation.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name;
+            if (!varSku) continue;
+            const product = skuMap.get(varSku.toUpperCase());
+            if (!product) { notFound.push(`${itemId}:${variation.id} (SKU: ${varSku})`); continue; }
+            await this.addMlIdToProduct(product, `${itemId}:${variation.id}`);
+            linked++;
+            anyLinked = true;
+          }
+          if (!anyLinked) skipped++;
+        } else {
+          // Anúncio simples — usa seller_sku ou seller_custom_field
+          const sku: string | undefined = item.seller_sku || item.seller_custom_field;
+          if (!sku) { skipped++; continue; }
+          const product = skuMap.get(sku.toUpperCase());
+          if (!product) { notFound.push(`${itemId} (SKU: ${sku})`); skipped++; continue; }
+          await this.addMlIdToProduct(product, itemId);
+          linked++;
+        }
+      }
+    }
+
+    return { linked, skipped, notFound };
+  }
+
   async syncProductStock(productId: number): Promise<{ ok: boolean; message: string }> {
     const product = await this.productRepo.findOne({ where: { id: productId } });
     if (!product) return { ok: false, message: 'Produto não encontrado' };
