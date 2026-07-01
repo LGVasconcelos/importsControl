@@ -43,7 +43,9 @@ export class MercadoLivreService {
       }),
     });
     const data = await res.json() as any;
-    if (!data.access_token) throw new Error(data.message || 'Token inválido');
+    if (!data.access_token) {
+      throw new Error(data.error_description || data.error || data.message || JSON.stringify(data));
+    }
 
     const userRes = await fetch(`${ML_API}/users/me`, {
       headers: { Authorization: `Bearer ${data.access_token}` },
