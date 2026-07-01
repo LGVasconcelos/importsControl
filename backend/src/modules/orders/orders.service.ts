@@ -133,27 +133,53 @@ export class OrdersService {
     return { message: 'Pedido removido com sucesso' };
   }
 
-  async syncCosts(): Promise<{ synced: number; skipped: number }> {
+  async syncCosts(force = false): Promise<{ synced: number; skipped: number }> {
     const orders = await this.orderRepo.find();
     let synced = 0;
     let skipped = 0;
+
+    // Busca taxas atuais uma única vez via cross-rate com USD
+    let ratesUsd: Record<string, number> = {};
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/USD');
+      const data = await res.json() as { rates: Record<string, number> };
+      ratesUsd = data.rates || {};
+    } catch { /* usa exchangeRate do banco como fallback */ }
+
     for (const order of orders) {
       if (Number(order.totalValue) <= 0) { skipped++; continue; }
       const existing = await this.costRepo.findOne({ where: { orderId: order.id, notes: AUTO_COST_MARKER } });
-      if (existing) { skipped++; continue; }
+      if (existing && !force) { skipped++; continue; }
+
+      let exchangeRate = Number(order.exchangeRate);
+      if (order.currency !== 'BRL' && Object.keys(ratesUsd).length > 0) {
+        const brlPerUsd = ratesUsd['BRL'];
+        const currPerUsd = ratesUsd[order.currency];
+        if (brlPerUsd && currPerUsd && currPerUsd > 0) {
+          exchangeRate = brlPerUsd / currPerUsd;
+          // Atualiza o exchangeRate no próprio pedido para futuras consultas
+          await this.orderRepo.update(order.id, { exchangeRate });
+        }
+      }
+
       const valueInBrl = order.currency === 'BRL'
         ? Number(order.totalValue)
-        : Number(order.totalValue) * Number(order.exchangeRate);
-      await this.costRepo.save(this.costRepo.create({
-        orderId: order.id,
-        description: `Valor do Pedido - ${order.orderNumber}`,
-        value: Number(order.totalValue),
-        currency: order.currency,
-        exchangeRate: Number(order.exchangeRate),
-        valueInBrl,
-        costType: 'Compra de Estoque',
-        notes: AUTO_COST_MARKER,
-      }));
+        : Number(order.totalValue) * exchangeRate;
+
+      if (existing) {
+        await this.costRepo.update(existing.id, { value: Number(order.totalValue), currency: order.currency, exchangeRate, valueInBrl });
+      } else {
+        await this.costRepo.save(this.costRepo.create({
+          orderId: order.id,
+          description: `Valor do Pedido - ${order.orderNumber}`,
+          value: Number(order.totalValue),
+          currency: order.currency,
+          exchangeRate,
+          valueInBrl,
+          costType: 'Compra de Estoque',
+          notes: AUTO_COST_MARKER,
+        }));
+      }
       synced++;
     }
     return { synced, skipped };

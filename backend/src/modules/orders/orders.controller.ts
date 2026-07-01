@@ -9,8 +9,8 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post('sync-costs')
-  syncCosts() {
-    return this.ordersService.syncCosts();
+  syncCosts(@Body() body: { force?: boolean }) {
+    return this.ordersService.syncCosts(body?.force);
   }
 
   @Post()
