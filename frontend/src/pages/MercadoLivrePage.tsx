@@ -57,20 +57,25 @@ export default function MercadoLivrePage() {
     const existing = parseIds(mlIds[product.id]);
     if (existing.includes(code)) { toast.error('Código já vinculado'); return; }
     const updated = [...existing, code].join(', ');
-    setMlIds(m => ({ ...m, [product.id]: updated }));
     setMlInputs(m => ({ ...m, [product.id]: '' }));
     try {
       await productsService.update(product.id, { mlItemId: updated });
       toast.success(`${code} vinculado ao produto ${product.sku}`);
-    } catch { toast.error('Erro ao salvar'); }
+      // Recarrega para confirmar que o dado foi salvo no banco
+      await load();
+    } catch (e: any) {
+      toast.error(`Erro ao salvar: ${e?.response?.data?.message || e?.message || 'desconhecido'}`);
+    }
   };
 
   const removeMlId = async (product: Product, code: string) => {
     const updated = parseIds(mlIds[product.id]).filter(c => c !== code).join(', ');
-    setMlIds(m => ({ ...m, [product.id]: updated }));
     try {
       await productsService.update(product.id, { mlItemId: updated });
-    } catch { toast.error('Erro ao remover'); }
+      await load();
+    } catch (e: any) {
+      toast.error(`Erro ao remover: ${e?.response?.data?.message || e?.message || 'desconhecido'}`);
+    }
   };
 
   const handleSyncAll = async () => {
@@ -89,9 +94,10 @@ export default function MercadoLivrePage() {
   const handleSyncOne = async (productId: number, sku: string) => {
     try {
       const r = await mercadolivreService.syncProduct(productId);
-      if (r.ok) toast.success(r.message); else toast.error(r.message);
-    } catch {
-      toast.error(`Erro ao sincronizar ${sku}`);
+      if (r.ok) toast.success(r.message);
+      else toast.error(`${sku}: ${r.message}`, { duration: 8000 });
+    } catch (e: any) {
+      toast.error(`Erro ao sincronizar ${sku}: ${e?.response?.data?.message || e?.message || 'desconhecido'}`);
     }
   };
 
