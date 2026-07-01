@@ -3,6 +3,7 @@ import { Type, Transform } from 'class-transformer';
 import { OrderStatus } from '../order.entity';
 
 const toNum = ({ value }: { value: any }) => value !== undefined && value !== '' ? Number(value) : value;
+const toDate = ({ value }: { value: any }) => (value === '' || value === null) ? undefined : value;
 
 export class OrderItemDto {
   @Transform(toNum) @IsNumber()
@@ -31,13 +32,13 @@ export class CreateOrderDto {
   @IsOptional() @IsEnum(OrderStatus)
   status?: OrderStatus;
 
-  @IsOptional() @IsDateString()
+  @IsOptional() @Transform(toDate) @IsDateString()
   orderDate?: string;
 
-  @IsOptional() @IsDateString()
+  @IsOptional() @Transform(toDate) @IsDateString()
   expectedArrival?: string;
 
-  @IsOptional() @IsDateString()
+  @IsOptional() @Transform(toDate) @IsDateString()
   actualArrival?: string;
 
   @IsOptional() @Transform(toNum) @IsNumber()

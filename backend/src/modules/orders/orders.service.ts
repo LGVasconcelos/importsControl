@@ -152,12 +152,14 @@ export class OrdersService {
       if (existing && !force) { skipped++; continue; }
 
       let exchangeRate = Number(order.exchangeRate);
-      if (order.currency !== 'BRL' && Object.keys(ratesUsd).length > 0) {
+      // Só usa taxa ao vivo se o pedido tem o valor padrão/inválido (1 ou 0)
+      const isDefaultRate = !exchangeRate || exchangeRate === 1 || exchangeRate === 0;
+      if (order.currency !== 'BRL' && isDefaultRate && Object.keys(ratesUsd).length > 0) {
         const brlPerUsd = ratesUsd['BRL'];
         const currPerUsd = ratesUsd[order.currency];
         if (brlPerUsd && currPerUsd && currPerUsd > 0) {
           exchangeRate = brlPerUsd / currPerUsd;
-          // Atualiza o exchangeRate no próprio pedido para futuras consultas
+          // Atualiza o exchangeRate no pedido apenas quando estava com valor padrão
           await this.orderRepo.update(order.id, { exchangeRate });
         }
       }
