@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { productsService } from '../services/products.service';
 import type { Product } from '../services/products.service';
+import { stockService } from '../services/stock.service';
+import type { MovementType } from '../services/stock.service';
 import toast from 'react-hot-toast';
 
 const emptyForm: Partial<Product> = { sku: '', name: '', description: '', origin: '', supplier: '', unit: 'UN', costPrice: 0, salePrice: 0, minimumStock: 0, category: '', ncm: '' };
+const emptyAdj = { type: 'ENTRY' as MovementType, quantity: 1, reason: '' };
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -12,6 +15,9 @@ export default function ProductsPage() {
   const [form, setForm] = useState<Partial<Product>>(emptyForm);
   const [editing, setEditing] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [adjModal, setAdjModal] = useState(false);
+  const [adjProduct, setAdjProduct] = useState<Product | null>(null);
+  const [adj, setAdj] = useState(emptyAdj);
 
   const load = () => { setLoading(true); productsService.getAll(search || undefined).then(setProducts).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, [search]);
@@ -42,6 +48,21 @@ export default function ProductsPage() {
     await productsService.remove(id);
     toast.success('Produto desativado');
     load();
+  };
+
+  const openAdj = (p: Product) => { setAdjProduct(p); setAdj(emptyAdj); setAdjModal(true); };
+
+  const handleAdj = async () => {
+    if (!adjProduct) return;
+    if (adj.quantity <= 0) { toast.error('Quantidade deve ser maior que zero'); return; }
+    try {
+      await stockService.createMovement({ productId: adjProduct.id, type: adj.type, quantity: adj.quantity, reason: adj.reason || undefined });
+      toast.success('Estoque ajustado!');
+      setAdjModal(false);
+      load();
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Erro ao ajustar estoque');
+    }
   };
 
   return (
@@ -79,6 +100,7 @@ export default function ProductsPage() {
                 <td style={styles.td}>{Number(p.salePrice).toFixed(2)}</td>
                 <td style={styles.td}>
                   <button onClick={() => openEdit(p)} style={styles.btnEdit}>Editar</button>
+                  <button onClick={() => openAdj(p)} style={styles.btnStock}>Estoque</button>
                   <button onClick={() => handleDelete(p.id)} style={styles.btnDel}>Desativar</button>
                 </td>
               </tr>
@@ -117,6 +139,38 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+      {adjModal && adjProduct && (
+        <div style={styles.overlay}>
+          <div style={{ ...styles.modal, maxWidth: 420 }}>
+            <h2 style={styles.modalTitle}>Ajustar Estoque — {adjProduct.name}</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              Estoque atual: <strong style={{ color: 'var(--text-primary)' }}>{adjProduct.currentStock} {adjProduct.unit}</strong>
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={styles.field}>
+                <label style={styles.label}>Tipo de Movimento</label>
+                <select value={adj.type} onChange={e => setAdj(a => ({ ...a, type: e.target.value as MovementType }))} style={styles.input}>
+                  <option value="ENTRY">Entrada</option>
+                  <option value="EXIT">Saída</option>
+                  <option value="ADJUSTMENT">Ajuste (definir total)</option>
+                </select>
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>{adj.type === 'ADJUSTMENT' ? 'Novo total em estoque' : 'Quantidade'}</label>
+                <input type="number" min={0} value={adj.quantity} onChange={e => setAdj(a => ({ ...a, quantity: Number(e.target.value) }))} style={styles.input} />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.label}>Motivo (opcional)</label>
+                <input value={adj.reason} onChange={e => setAdj(a => ({ ...a, reason: e.target.value }))} placeholder="Ex: Inventário, devolução..." style={styles.input} />
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={() => setAdjModal(false)} style={styles.btnCancel}>Cancelar</button>
+              <button onClick={handleAdj} style={styles.btnPrimary}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -136,6 +190,7 @@ const styles: Record<string, React.CSSProperties> = {
   stockBadge: { padding: '3px 8px', borderRadius: 20, fontSize: 12, fontWeight: 600 },
   btnPrimary: { padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
   btnEdit: { marginRight: 6, padding: '5px 10px', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
+  btnStock: { marginRight: 6, padding: '5px 10px', background: '#f0fdf4', color: '#16a34a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnDel: { padding: '5px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   empty: { padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
