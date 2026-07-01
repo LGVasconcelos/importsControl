@@ -52,8 +52,13 @@ export default function MercadoLivrePage() {
   const parseIds = (v?: string) => v ? v.split(',').map(s => s.trim()).filter(Boolean) : [];
 
   const addMlId = async (product: Product) => {
-    const code = (mlInputs[product.id] || '').trim().toUpperCase();
-    if (!code) return;
+    const raw = (mlInputs[product.id] || '').trim().toUpperCase();
+    if (!raw) return;
+    // Remove hífens do itemId (MLB-123 → MLB123), preserva o :VARIATION_ID se houver
+    const [itemPart, varPart] = raw.split(':');
+    const code = varPart
+      ? `${itemPart.replace(/-/g, '')}:${varPart.trim()}`
+      : itemPart.replace(/-/g, '');
     const existing = parseIds(mlIds[product.id]);
     if (existing.includes(code)) { toast.error('Código já vinculado'); return; }
     const updated = [...existing, code].join(', ');
