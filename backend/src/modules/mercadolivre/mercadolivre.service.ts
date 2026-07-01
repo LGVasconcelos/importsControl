@@ -240,6 +240,12 @@ export class MercadoLivreService {
 
           const itemSkuFallback = this.extractSku(fullItem);
           debug.push(`[ITEM_VAR] ${itemId} → SKU_ITEM="${itemSkuFallback ?? 'N/A'}" variações=${(fullItem.variations || item.variations).length}`);
+          // Loga o objeto completo da 1ª variação para diagnóstico
+          const firstVar = (fullItem.variations || item.variations)[0];
+          if (firstVar) {
+            debug.push(`[VAR_KEYS] ${itemId} → keys=${JSON.stringify(Object.keys(firstVar))}`);
+            debug.push(`[VAR_RAW] ${itemId}:${firstVar.id} → seller_sku=${JSON.stringify(firstVar.seller_sku)} seller_custom_field=${JSON.stringify(firstVar.seller_custom_field)} attributes=${JSON.stringify(firstVar.attributes)} attribute_combinations=${JSON.stringify(firstVar.attribute_combinations)}`);
+          }
 
           let anyLinked = false;
 
