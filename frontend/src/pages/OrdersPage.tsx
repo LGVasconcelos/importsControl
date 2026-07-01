@@ -41,11 +41,15 @@ export default function OrdersPage() {
     if (currency === 'BRL') { setForm(f => ({ ...f, currency, exchangeRate: 1 })); return; }
     setFetchingRate(true);
     try {
-      const res = await fetch(`https://open.er-api.com/v6/latest/BRL`);
+      const res = await fetch(`https://open.er-api.com/v6/latest/USD`);
       const data = await res.json();
-      const ratePerBrl = data.rates?.[currency]; // ex: 1 BRL = 1.25 CNY
-      if (ratePerBrl && ratePerBrl > 0) {
-        const rate = 1 / ratePerBrl; // ex: 1 CNY = 0.80 BRL
+      // rates.BRL = quantos BRL por 1 USD
+      // rates[currency] = quantas unidades da moeda por 1 USD
+      // Cruzamento: 1 currency = (rates.BRL / rates[currency]) BRL
+      const brlPerUsd = data.rates?.BRL;
+      const currPerUsd = data.rates?.[currency];
+      if (brlPerUsd && currPerUsd && currPerUsd > 0) {
+        const rate = brlPerUsd / currPerUsd;
         setForm(f => ({ ...f, currency, exchangeRate: Number(rate.toFixed(4)) }));
         toast.success(`Taxa: 1 ${currency} = R$ ${rate.toFixed(4)}`, { duration: 2500 });
       } else {
