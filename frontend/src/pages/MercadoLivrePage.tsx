@@ -365,7 +365,7 @@ export default function MercadoLivrePage() {
                           Copiar
                         </button>
                         <a
-                          href={`https://www.mercadolivre.com.br/p/${itemId}`}
+                          href={`https://produto.mercadolivre.com.br/${itemId.replace(/^(MLB)(\d)/, '$1-$2')}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={styles.btnLink}
