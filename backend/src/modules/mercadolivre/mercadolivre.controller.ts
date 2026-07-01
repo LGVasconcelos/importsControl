@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Delete, Query, Param, ParseIntPipe, UseGuards, Res, Body, HttpCode } from '@nestjs/common';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { MercadoLivreService } from './mercadolivre.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
