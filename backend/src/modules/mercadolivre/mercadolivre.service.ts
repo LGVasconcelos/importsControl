@@ -138,18 +138,24 @@ export class MercadoLivreService {
     const [itemId, variationId] = mlEntry.split(':').map(s => s.trim());
     const label = variationId ? `${itemId} (var. ${variationId})` : itemId;
 
-    let url: string;
+    // Verifica status do item antes de tentar atualizar
+    const statusRes = await fetch(`${ML_API}/items/${itemId}?attributes=id,status`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const statusData = await statusRes.json() as any;
+    if (statusData.status && statusData.status !== 'active') {
+      return { ok: false, label, error: `item ${statusData.status} (não é possível atualizar estoque)` };
+    }
+
     let body: any;
     if (variationId) {
-      // Endpoint dedicado para atualizar estoque de variação
-      url = `${ML_API}/items/${itemId}/variations/${variationId}`;
-      body = { available_quantity: quantity };
+      // ML aceita atualização de variação via PUT /items/{id} com variations[]
+      body = { variations: [{ id: Number(variationId), available_quantity: quantity }] };
     } else {
-      url = `${ML_API}/items/${itemId}`;
       body = { available_quantity: quantity };
     }
 
-    const res = await fetch(url, {
+    const res = await fetch(`${ML_API}/items/${itemId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
