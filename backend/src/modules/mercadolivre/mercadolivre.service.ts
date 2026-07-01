@@ -164,7 +164,19 @@ export class MercadoLivreService {
     product.mlItemId = updated;
   }
 
-  async autoLinkBySku(): Promise<{ linked: number; skipped: number; notFound: string[] }> {
+  /** Extrai o seller_sku de um item/variação verificando todos os campos possíveis */
+  private extractSku(obj: any): string | undefined {
+    // 1) campo direto
+    if (obj?.seller_sku) return obj.seller_sku as string;
+    // 2) seller_custom_field (só em items, não em variações)
+    if (obj?.seller_custom_field) return obj.seller_custom_field as string;
+    // 3) atributo SELLER_SKU no array attributes
+    const attr = obj?.attributes?.find((a: any) => a.id === 'SELLER_SKU');
+    if (attr?.value_name) return attr.value_name as string;
+    return undefined;
+  }
+
+  async autoLinkBySku(): Promise<{ linked: number; skipped: number; notFound: string[]; debug: string[] }> {
     const accessToken = await this.getValidToken();
     const tokenRecord = await this.tokenRepo.findOne({ where: {} });
     const userId = tokenRecord?.mlUserId;
@@ -191,18 +203,19 @@ export class MercadoLivreService {
 
     let linked = 0, skipped = 0;
     const notFound: string[] = [];
+    const debug: string[] = [];
 
     // 3. Busca detalhes dos anúncios em lotes de 20
     for (let i = 0; i < allItemIds.length; i += 20) {
       const batch = allItemIds.slice(i, i + 20);
-      const res = await fetch(`${ML_API}/items?ids=${batch.join(',')}`, {
+      const res = await fetch(`${ML_API}/items?ids=${batch.join(',')}&attributes=id,title,seller_sku,seller_custom_field,attributes,variations`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const items = await res.json() as any[];
       if (!Array.isArray(items)) continue;
 
       for (const wrapper of items) {
-        if (wrapper.code !== 200) continue;
+        if (wrapper.code !== 200) { debug.push(`[ERRO ${wrapper.code}] ${wrapper.body?.id || '?'}`); continue; }
         const item = wrapper.body;
         if (!item) continue;
         const itemId: string = item.id;
@@ -211,9 +224,8 @@ export class MercadoLivreService {
           // Anúncio com variações — tenta vincular cada variação pelo seu seller_sku
           let anyLinked = false;
           for (const variation of item.variations) {
-            const varSku: string | undefined =
-              variation.seller_sku ||
-              variation.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name;
+            const varSku = this.extractSku(variation);
+            debug.push(`[VAR] ${itemId}:${variation.id} → SKU="${varSku ?? 'N/A'}"`);
             if (!varSku) continue;
             const product = skuMap.get(varSku.toUpperCase());
             if (!product) { notFound.push(`${itemId}:${variation.id} (SKU: ${varSku})`); continue; }
@@ -223,8 +235,9 @@ export class MercadoLivreService {
           }
           if (!anyLinked) skipped++;
         } else {
-          // Anúncio simples — usa seller_sku ou seller_custom_field
-          const sku: string | undefined = item.seller_sku || item.seller_custom_field;
+          // Anúncio simples — tenta os três campos possíveis
+          const sku = this.extractSku(item);
+          debug.push(`[ITEM] ${itemId} → SKU="${sku ?? 'N/A'}"`);
           if (!sku) { skipped++; continue; }
           const product = skuMap.get(sku.toUpperCase());
           if (!product) { notFound.push(`${itemId} (SKU: ${sku})`); skipped++; continue; }
@@ -234,7 +247,7 @@ export class MercadoLivreService {
       }
     }
 
-    return { linked, skipped, notFound };
+    return { linked, skipped, notFound, debug };
   }
 
   async syncProductStock(productId: number): Promise<{ ok: boolean; message: string }> {

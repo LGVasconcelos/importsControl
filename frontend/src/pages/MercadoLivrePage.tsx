@@ -121,6 +121,11 @@ export default function MercadoLivrePage() {
       const r = await mercadolivreService.autoLink();
       toast.success(`Vinculados: ${r.linked} | Sem SKU no ML: ${r.skipped}`, { duration: 6000 });
       if (r.notFound.length) toast.error(`SKUs não encontrados:\n${r.notFound.slice(0, 5).join('\n')}`, { duration: 8000 });
+      if (r.debug?.length) {
+        const debugLines = r.debug.slice(0, 10).join('\n');
+        console.log('[AutoLink Debug]', r.debug);
+        toast(`Debug (${r.debug.length} anúncios):\n${debugLines}`, { duration: 12000 });
+      }
       await load();
     } catch (e: any) {
       toast.error(`Erro: ${e?.response?.data?.message || e?.message || 'desconhecido'}`);
