@@ -63,4 +63,46 @@ export class CreateOrderDto {
   items?: OrderItemDto[];
 }
 
-export class UpdateOrderDto extends CreateOrderDto {}
+export class UpdateOrderDto {
+  @IsOptional() @IsString() @IsNotEmpty()
+  orderNumber?: string;
+
+  @IsOptional() @IsString() @IsNotEmpty()
+  supplier?: string;
+
+  @IsOptional() @IsString()
+  origin?: string;
+
+  @IsOptional() @IsEnum(OrderStatus)
+  status?: OrderStatus;
+
+  @IsOptional() @Transform(toDate) @IsDateString()
+  orderDate?: string;
+
+  @IsOptional() @Transform(toDate) @IsDateString()
+  expectedArrival?: string;
+
+  @IsOptional() @Transform(toDate) @IsDateString()
+  actualArrival?: string;
+
+  @IsOptional() @Transform(toNum) @IsNumber()
+  totalValue?: number;
+
+  @IsOptional() @IsString()
+  currency?: string;
+
+  @IsOptional() @Transform(toNum) @IsNumber()
+  exchangeRate?: number;
+
+  @IsOptional() @IsString()
+  invoiceNumber?: string;
+
+  @IsOptional() @IsString()
+  trackingCode?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => OrderItemDto)
+  items?: OrderItemDto[];
+}

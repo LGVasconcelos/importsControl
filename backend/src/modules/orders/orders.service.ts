@@ -1,10 +1,12 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Order } from './order.entity';
+import { Order, OrderStatus } from './order.entity';
 import { OrderItem } from './order-item.entity';
 import { CreateOrderDto, UpdateOrderDto } from './dto/order.dto';
 import { Cost } from '../costs/cost.entity';
+import { StockService } from '../stock/stock.service';
+import { MovementType } from '../stock/stock-movement.entity';
 
 const AUTO_COST_MARKER = '__auto__';
 
@@ -17,6 +19,7 @@ export class OrdersService {
     private readonly orderItemRepo: Repository<OrderItem>,
     @InjectRepository(Cost)
     private readonly costRepo: Repository<Cost>,
+    private readonly stockService: StockService,
   ) {}
 
   async create(dto: CreateOrderDto, userId: number): Promise<Order> {
@@ -67,8 +70,8 @@ export class OrdersService {
     return order;
   }
 
-  async update(id: number, dto: UpdateOrderDto): Promise<Order> {
-    await this.findOne(id);
+  async update(id: number, dto: UpdateOrderDto, userId?: number): Promise<Order> {
+    const before = await this.findOne(id);
     const { items, ...orderData } = dto;
     await this.orderRepo.update(id, orderData);
     const updated = await this.findOne(id);
@@ -122,7 +125,41 @@ export class OrdersService {
       }));
     }
 
+    // Entrada automática no estoque se status mudou para RECEIVED
+    if (userId && dto.status === OrderStatus.RECEIVED && before.status !== OrderStatus.RECEIVED) {
+      await this.addOrderItemsToStock(updated, userId);
+    }
+
     return this.findOne(id);
+  }
+
+  async updateStatus(id: number, status: OrderStatus, userId: number): Promise<Order> {
+    const before = await this.findOne(id);
+    await this.orderRepo.update(id, { status });
+    const updated = await this.findOne(id);
+
+    // Quando muda para RECEBIDO, lança entrada no estoque para cada item do pedido
+    if (status === OrderStatus.RECEIVED && before.status !== OrderStatus.RECEIVED) {
+      await this.addOrderItemsToStock(updated, userId);
+    }
+
+    return updated;
+  }
+
+  private async addOrderItemsToStock(order: Order, userId: number): Promise<void> {
+    const orderItems = await this.orderItemRepo.find({ where: { orderId: order.id } });
+    for (const item of orderItems) {
+      if (!item.productId || Number(item.quantity) <= 0) continue;
+      try {
+        await this.stockService.createMovement({
+          productId: item.productId,
+          type: MovementType.ENTRY,
+          quantity: Math.round(Number(item.quantity)),
+          reason: `Recebimento do pedido ${order.orderNumber}`,
+          orderReference: order.orderNumber,
+        }, userId);
+      } catch { /* produto removido ou erro pontual — não bloqueia */ }
+    }
   }
 
   async remove(id: number): Promise<{ message: string }> {

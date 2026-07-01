@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderDto } from './dto/order.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OrderStatus } from './order.entity';
 
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
@@ -34,8 +35,13 @@ export class OrdersController {
   }
 
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateOrderDto) {
-    return this.ordersService.update(id, dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateOrderDto, @Request() req: any) {
+    return this.ordersService.update(id, dto, req.user.id);
+  }
+
+  @Patch(':id/status')
+  updateStatus(@Param('id', ParseIntPipe) id: number, @Body('status') status: OrderStatus, @Request() req: any) {
+    return this.ordersService.updateStatus(id, status, req.user.id);
   }
 
   @Delete(':id')

@@ -147,9 +147,9 @@ export default function OrdersPage() {
 
   const handleStatusChange = async (id: number, status: OrderStatus) => {
     try {
-      await ordersService.update(id, { status });
+      await ordersService.updateStatus(id, status);
       setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
-      toast.success('Status atualizado!');
+      toast.success(status === 'RECEIVED' ? 'Pedido recebido! Estoque atualizado.' : 'Status atualizado!');
     } catch {
       toast.error('Erro ao atualizar status');
     }

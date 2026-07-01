@@ -26,6 +26,7 @@ export const ordersService = {
   getOne: (id: number) => api.get<Order>(`/orders/${id}`).then(r => r.data),
   create: (data: Partial<Order>) => api.post<Order>('/orders', data).then(r => r.data),
   update: (id: number, data: Partial<Order>) => api.put<Order>(`/orders/${id}`, data).then(r => r.data),
+  updateStatus: (id: number, status: string) => api.patch<Order>(`/orders/${id}/status`, { status }).then(r => r.data),
   remove: (id: number) => api.delete(`/orders/${id}`).then(r => r.data),
   syncCosts: (force = true) => api.post<{ synced: number; skipped: number }>('/orders/sync-costs', { force }).then(r => r.data),
   fixTracking: () => api.post<{ fixed: number; skipped: number }>('/orders/fix-tracking').then(r => r.data),
