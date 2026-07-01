@@ -226,11 +226,19 @@ export class MercadoLivreService {
         const itemId: string = item.id;
 
         if (item.variations?.length) {
-          // Anúncio com variações — tenta vincular cada variação pelo seu seller_sku
+          // Para variações, busca o item individualmente para ter os attributes completos
+          let fullItem = item;
+          try {
+            const varRes = await fetch(`${ML_API}/items/${itemId}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            fullItem = await varRes.json() as any;
+          } catch (_) { /* usa item do batch se falhar */ }
+
           let anyLinked = false;
-          for (const variation of item.variations) {
+          for (const variation of (fullItem.variations || item.variations)) {
             const varSku = this.extractSku(variation);
-            debug.push(`[VAR] ${itemId}:${variation.id} → SKU="${varSku ?? 'N/A'}"`);
+            debug.push(`[VAR] ${itemId}:${variation.id} → SKU="${varSku ?? 'N/A'}" attrs=${JSON.stringify(variation.attributes?.map((a:any)=>a.id) ?? [])}`);
             if (!varSku) continue;
             const product = skuMap.get(varSku.toUpperCase());
             if (!product) { notFound.push(`${itemId}:${variation.id} (SKU: ${varSku})`); continue; }
