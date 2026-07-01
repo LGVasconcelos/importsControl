@@ -44,6 +44,9 @@ export class Product {
   @Column({ nullable: true, length: 50 })
   ncm: string;
 
+  @Column({ nullable: true, length: 50 })
+  mlItemId: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

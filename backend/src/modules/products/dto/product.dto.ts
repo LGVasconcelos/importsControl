@@ -36,6 +36,9 @@ export class CreateProductDto {
 
   @IsOptional() @IsString()
   ncm?: string;
+
+  @IsOptional() @IsString()
+  mlItemId?: string;
 }
 
 export class UpdateProductDto extends CreateProductDto {

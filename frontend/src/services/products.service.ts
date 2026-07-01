@@ -6,6 +6,7 @@ export interface Product {
   costPrice: number; salePrice: number;
   currentStock: number; minimumStock: number;
   active: boolean; category?: string; ncm?: string;
+  mlItemId?: string;
   createdAt: string; updatedAt: string;
 }
 

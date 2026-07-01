@@ -10,6 +10,7 @@ import ProductsPage from './pages/ProductsPage';
 import StockPage from './pages/StockPage';
 import OrdersPage from './pages/OrdersPage';
 import CostsPage from './pages/CostsPage';
+import MercadoLivrePage from './pages/MercadoLivrePage';
 import ReportsPage from './pages/ReportsPage';
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/costs" element={<CostsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/mercadolivre" element={<MercadoLivrePage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

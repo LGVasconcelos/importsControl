@@ -9,6 +9,7 @@ const links = [
   { to: '/orders', label: 'Pedidos', icon: '🚢' },
   { to: '/costs', label: 'Custos', icon: '💰' },
   { to: '/reports', label: 'Relatórios', icon: '📈' },
+  { to: '/mercadolivre', label: 'Mercado Livre', icon: '🛒' },
 ];
 
 export default function Sidebar() {
