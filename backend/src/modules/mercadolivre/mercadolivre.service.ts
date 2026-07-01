@@ -138,20 +138,28 @@ export class MercadoLivreService {
     const [itemId, variationId] = mlEntry.split(':').map(s => s.trim());
     const label = variationId ? `${itemId} (var. ${variationId})` : itemId;
 
+    let url: string;
     let body: any;
     if (variationId) {
-      body = { variations: [{ id: Number(variationId), available_quantity: quantity }] };
+      // Endpoint dedicado para atualizar estoque de variação
+      url = `${ML_API}/items/${itemId}/variations/${variationId}`;
+      body = { available_quantity: quantity };
     } else {
+      url = `${ML_API}/items/${itemId}`;
       body = { available_quantity: quantity };
     }
 
-    const res = await fetch(`${ML_API}/items/${itemId}`, {
+    const res = await fetch(url, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     const data = await res.json() as any;
-    if (!res.ok) return { ok: false, label, error: data.message || 'Erro na API ML' };
+    if (!res.ok) {
+      const cause = data.cause?.map((c: any) => `${c.code}: ${c.description}`).join('; ') || '';
+      const errMsg = `${data.message || data.error || 'Erro ML'}${cause ? ` (${cause})` : ''}`;
+      return { ok: false, label, error: errMsg };
+    }
     return { ok: true, label };
   }
 
