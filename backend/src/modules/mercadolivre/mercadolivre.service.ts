@@ -175,6 +175,31 @@ export class MercadoLivreService {
     return { ok: true, message: `${results.length} anúncio(s) atualizados para ${product.currentStock} unidades` };
   }
 
+  async getItemVariations(itemId: string): Promise<{ id: string; attributes: string; code: string }[]> {
+    // Normaliza: remove hífens e garante maiúsculas
+    const cleanId = itemId.replace(/-/g, '').toUpperCase();
+    const accessToken = await this.getValidToken();
+    const res = await fetch(`${ML_API}/items/${cleanId}?attributes=id,variations`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await res.json() as any;
+    if (!res.ok) throw new Error(data.message || 'Erro ao buscar anúncio');
+
+    const variations: any[] = data.variations || [];
+    if (!variations.length) return [];
+
+    return variations.map((v: any) => {
+      const attrs = (v.attribute_combinations || [])
+        .map((a: any) => `${a.name}: ${a.value_name}`)
+        .join(' | ') || 'Variação';
+      return {
+        id: String(v.id),
+        attributes: attrs,
+        code: `${cleanId}:${v.id}`,
+      };
+    });
+  }
+
   async syncAllStock(): Promise<{ synced: number; skipped: number; errors: string[] }> {
     const products = await this.productRepo.find({ where: { active: true } });
     let synced = 0, skipped = 0;

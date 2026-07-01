@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mercadolivreService } from '../services/mercadolivre.service';
+import type { MlVariation } from '../services/mercadolivre.service';
 import { productsService } from '../services/products.service';
 import type { Product } from '../services/products.service';
 import toast from 'react-hot-toast';
@@ -14,6 +15,11 @@ export default function MercadoLivrePage() {
   const [mlInputs, setMlInputs] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [varModal, setVarModal] = useState(false);
+  const [varItemInput, setVarItemInput] = useState('');
+  const [varLoading, setVarLoading] = useState(false);
+  const [variations, setVariations] = useState<MlVariation[]>([]);
+  const [varError, setVarError] = useState('');
 
   useEffect(() => {
     if (searchParams.get('connected') === 'true') toast.success('Mercado Livre conectado!');
@@ -106,14 +112,37 @@ export default function MercadoLivrePage() {
     }
   };
 
+  const openVarModal = () => { setVarModal(true); setVarItemInput(''); setVariations([]); setVarError(''); };
+
+  const handleFetchVariations = async () => {
+    const raw = varItemInput.trim().toUpperCase();
+    if (!raw) return;
+    const itemId = raw.replace(/-/g, '');
+    setVarLoading(true); setVarError(''); setVariations([]);
+    try {
+      const vars = await mercadolivreService.getVariations(itemId);
+      if (!vars.length) setVarError('Este anúncio não tem variações cadastradas.');
+      else setVariations(vars);
+    } catch (e: any) {
+      setVarError(e?.response?.data?.message || e?.message || 'Erro ao buscar variações');
+    } finally {
+      setVarLoading(false);
+    }
+  };
+
+  const copyCode = (code: string) => { navigator.clipboard.writeText(code); toast.success(`Código ${code} copiado!`); };
+
   return (
     <div>
       <div style={styles.header}>
         <h1 style={styles.title}>🛒 Mercado Livre</h1>
         {connected && (
-          <button onClick={handleSyncAll} disabled={syncing} style={styles.btnSync}>
-            {syncing ? 'Sincronizando...' : 'Sincronizar Todo Estoque'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={openVarModal} style={styles.btnVar}>🔍 Ver Variações</button>
+            <button onClick={handleSyncAll} disabled={syncing} style={styles.btnSync}>
+              {syncing ? 'Sincronizando...' : 'Sincronizar Todo Estoque'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -207,6 +236,55 @@ export default function MercadoLivrePage() {
           </div>
         </>
       )}
+
+      {varModal && (
+        <div style={styles.overlay}>
+          <div style={{ ...styles.modal, maxWidth: 520 }}>
+            <h2 style={styles.modalTitle}>🔍 Buscar Variações de Anúncio</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              Digite o código MLB do anúncio para listar suas variações com os códigos prontos para copiar.
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input
+                value={varItemInput}
+                onChange={e => setVarItemInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleFetchVariations(); }}
+                placeholder="MLB4713389153"
+                style={{ ...styles.mlInput, width: '100%', fontSize: 13 }}
+              />
+              <button onClick={handleFetchVariations} disabled={varLoading} style={styles.btnAdd}>
+                {varLoading ? '...' : 'Buscar'}
+              </button>
+            </div>
+            {varError && <p style={{ color: '#dc2626', fontSize: 13, marginBottom: 12 }}>{varError}</p>}
+            {variations.length > 0 && (
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+                <thead>
+                  <tr style={styles.thead}>
+                    <th style={styles.th}>Variação</th>
+                    <th style={styles.th}>Código para usar</th>
+                    <th style={styles.th}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {variations.map(v => (
+                    <tr key={v.id} style={styles.tr}>
+                      <td style={styles.td}>{v.attributes}</td>
+                      <td style={styles.td}><code style={{ background: 'var(--bg-thead)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>{v.code}</code></td>
+                      <td style={styles.td}>
+                        <button onClick={() => copyCode(v.code)} style={styles.btnSave}>Copiar</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setVarModal(false)} style={styles.btnDanger}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -236,4 +314,8 @@ const styles: Record<string, React.CSSProperties> = {
   btnDanger: { padding: '7px 14px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
   btnSave: { marginRight: 6, padding: '5px 10px', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnSyncOne: { padding: '5px 10px', background: '#f0fdf4', color: '#16a34a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
+  btnVar: { padding: '9px 14px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: '1.5px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+  modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 },
 };

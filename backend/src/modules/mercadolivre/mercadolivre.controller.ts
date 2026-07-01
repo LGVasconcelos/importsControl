@@ -55,4 +55,10 @@ export class MercadoLivreController {
   syncOne(@Param('productId', ParseIntPipe) productId: number) {
     return this.mlService.syncProductStock(productId);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('items/:itemId/variations')
+  getVariations(@Param('itemId') itemId: string) {
+    return this.mlService.getItemVariations(itemId);
+  }
 }
