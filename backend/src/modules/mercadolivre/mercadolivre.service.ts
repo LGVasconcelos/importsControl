@@ -240,23 +240,21 @@ export class MercadoLivreService {
 
           const itemSkuFallback = this.extractSku(fullItem);
           debug.push(`[ITEM_VAR] ${itemId} → SKU_ITEM="${itemSkuFallback ?? 'N/A'}" variações=${(fullItem.variations || item.variations).length}`);
-          // Loga o objeto completo da 1ª variação para diagnóstico
-          const firstVar = (fullItem.variations || item.variations)[0];
-          if (firstVar) {
-            debug.push(`[VAR_KEYS] ${itemId} → keys=${JSON.stringify(Object.keys(firstVar))}`);
-            debug.push(`[VAR_RAW] ${itemId}:${firstVar.id} → seller_sku=${JSON.stringify(firstVar.seller_sku)} seller_custom_field=${JSON.stringify(firstVar.seller_custom_field)} attributes=${JSON.stringify(firstVar.attributes)} attribute_combinations=${JSON.stringify(firstVar.attribute_combinations)}`);
-          }
 
           let anyLinked = false;
 
-          // Tenta vincular por SKU de cada variação individualmente
+          // Busca cada variação individualmente para obter attributes completos (SELLER_SKU)
           for (const variation of (fullItem.variations || item.variations)) {
-            const varSku = this.extractSku(variation);
-            const attrIds = [
-              ...(variation.attributes?.map((a: any) => a.id) ?? []),
-              ...(variation.attribute_combinations?.map((a: any) => a.id) ?? []),
-            ];
-            debug.push(`[VAR] ${itemId}:${variation.id} → SKU="${varSku ?? 'N/A'}" attrIds=${JSON.stringify(attrIds)}`);
+            let varData = variation;
+            try {
+              const varRes = await fetch(`${ML_API}/items/${itemId}/variations/${variation.id}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+              if (varRes.ok) varData = await varRes.json() as any;
+            } catch (_) { /* usa dados do item se falhar */ }
+
+            const varSku = this.extractSku(varData);
+            debug.push(`[VAR] ${itemId}:${variation.id} → SKU="${varSku ?? 'N/A'}" seller_sku=${JSON.stringify(varData.seller_sku)} attributes=${JSON.stringify(varData.attributes)}`);
             if (!varSku) continue;
             const product = skuMap.get(varSku.toUpperCase());
             if (!product) { notFound.push(`${itemId}:${variation.id} (SKU: ${varSku})`); continue; }
