@@ -141,7 +141,10 @@ export default function OrdersPage() {
     <div>
       <div style={styles.header}>
         <h1 style={styles.title}>Pedidos de Importação</h1>
-        <button onClick={openCreate} style={styles.btnPrimary}>+ Novo Pedido</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={async () => { try { const r = await ordersService.syncCosts(); toast.success(`Custos sincronizados: ${r.synced} criados, ${r.skipped} já existiam`); } catch { toast.error('Erro ao sincronizar custos'); } }} style={styles.btnSync}>Sincronizar Custos</button>
+          <button onClick={openCreate} style={styles.btnPrimary}>+ Novo Pedido</button>
+        </div>
       </div>
       <div style={styles.toolbar}>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={styles.filterSelect}>
@@ -340,6 +343,7 @@ const styles: Record<string, React.CSSProperties> = {
   badge: { padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 },
   empty: { padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' },
   btnPrimary: { padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
+  btnSync: { padding: '9px 18px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: '1.5px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
   btnEdit: { marginRight: 6, padding: '5px 10px', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnDel: { padding: '5px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },

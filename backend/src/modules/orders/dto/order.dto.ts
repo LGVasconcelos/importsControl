@@ -1,15 +1,17 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsEnum, IsDateString, IsArray, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { OrderStatus } from '../order.entity';
 
+const toNum = ({ value }: { value: any }) => value !== undefined && value !== '' ? Number(value) : value;
+
 export class OrderItemDto {
-  @IsNumber()
+  @Transform(toNum) @IsNumber()
   productId: number;
 
-  @IsNumber()
+  @Transform(toNum) @IsNumber()
   quantity: number;
 
-  @IsOptional() @IsNumber()
+  @IsOptional() @Transform(toNum) @IsNumber()
   unitPrice?: number;
 
   @IsOptional() @IsString()
@@ -38,13 +40,13 @@ export class CreateOrderDto {
   @IsOptional() @IsDateString()
   actualArrival?: string;
 
-  @IsOptional() @IsNumber()
+  @IsOptional() @Transform(toNum) @IsNumber()
   totalValue?: number;
 
   @IsOptional() @IsString()
   currency?: string;
 
-  @IsOptional() @IsNumber()
+  @IsOptional() @Transform(toNum) @IsNumber()
   exchangeRate?: number;
 
   @IsOptional() @IsString()

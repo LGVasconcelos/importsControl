@@ -1,4 +1,7 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
+
+const toNum = ({ value }: { value: any }) => value !== undefined && value !== '' ? Number(value) : value;
 
 export class CreateProductDto {
   @IsString() @IsNotEmpty()
@@ -19,13 +22,13 @@ export class CreateProductDto {
   @IsOptional() @IsString()
   unit?: string;
 
-  @IsOptional() @IsNumber()
+  @IsOptional() @Transform(toNum) @IsNumber()
   costPrice?: number;
 
-  @IsOptional() @IsNumber()
+  @IsOptional() @Transform(toNum) @IsNumber()
   salePrice?: number;
 
-  @IsOptional() @IsNumber() @Min(0)
+  @IsOptional() @Transform(toNum) @IsNumber() @Min(0)
   minimumStock?: number;
 
   @IsOptional() @IsString()

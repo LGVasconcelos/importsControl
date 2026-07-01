@@ -8,6 +8,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
+  @Post('sync-costs')
+  syncCosts() {
+    return this.ordersService.syncCosts();
+  }
+
   @Post()
   create(@Body() dto: CreateOrderDto, @Request() req: any) {
     return this.ordersService.create(dto, req.user.id);

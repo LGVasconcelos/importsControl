@@ -132,4 +132,30 @@ export class OrdersService {
     await this.orderRepo.delete(id);
     return { message: 'Pedido removido com sucesso' };
   }
+
+  async syncCosts(): Promise<{ synced: number; skipped: number }> {
+    const orders = await this.orderRepo.find();
+    let synced = 0;
+    let skipped = 0;
+    for (const order of orders) {
+      if (Number(order.totalValue) <= 0) { skipped++; continue; }
+      const existing = await this.costRepo.findOne({ where: { orderId: order.id, notes: AUTO_COST_MARKER } });
+      if (existing) { skipped++; continue; }
+      const valueInBrl = order.currency === 'BRL'
+        ? Number(order.totalValue)
+        : Number(order.totalValue) * Number(order.exchangeRate);
+      await this.costRepo.save(this.costRepo.create({
+        orderId: order.id,
+        description: `Valor do Pedido - ${order.orderNumber}`,
+        value: Number(order.totalValue),
+        currency: order.currency,
+        exchangeRate: Number(order.exchangeRate),
+        valueInBrl,
+        costType: 'Compra de Estoque',
+        notes: AUTO_COST_MARKER,
+      }));
+      synced++;
+    }
+    return { synced, skipped };
+  }
 }

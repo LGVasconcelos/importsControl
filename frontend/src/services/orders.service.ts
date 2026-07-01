@@ -27,4 +27,5 @@ export const ordersService = {
   create: (data: Partial<Order>) => api.post<Order>('/orders', data).then(r => r.data),
   update: (id: number, data: Partial<Order>) => api.put<Order>(`/orders/${id}`, data).then(r => r.data),
   remove: (id: number) => api.delete(`/orders/${id}`).then(r => r.data),
+  syncCosts: () => api.post<{ synced: number; skipped: number }>('/orders/sync-costs').then(r => r.data),
 };
