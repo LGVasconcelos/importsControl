@@ -16,7 +16,8 @@ export default function MercadoLivrePage() {
 
   useEffect(() => {
     if (searchParams.get('connected') === 'true') toast.success('Mercado Livre conectado!');
-    if (searchParams.get('error')) toast.error('Erro ao conectar ao Mercado Livre');
+    const err = searchParams.get('error');
+    if (err) toast.error(`Erro ML: ${decodeURIComponent(err)}`, { duration: 8000 });
     load();
   }, []);
 

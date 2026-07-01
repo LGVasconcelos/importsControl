@@ -15,10 +15,12 @@ export class MercadoLivreController {
   @Get('callback')
   async callback(@Query('code') code: string, @Res() res: Response) {
     try {
+      if (!code) return res.redirect('https://imports-control.vercel.app/mercadolivre?error=no_code');
       await this.mlService.handleCallback(code);
       return res.redirect('https://imports-control.vercel.app/mercadolivre?connected=true');
-    } catch {
-      return res.redirect('https://imports-control.vercel.app/mercadolivre?error=auth_failed');
+    } catch (e: any) {
+      const msg = encodeURIComponent(e?.message || 'auth_failed');
+      return res.redirect(`https://imports-control.vercel.app/mercadolivre?error=${msg}`);
     }
   }
 
