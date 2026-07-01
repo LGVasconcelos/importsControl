@@ -207,11 +207,13 @@ export default function OrdersPage() {
                     : <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>—</span>}
                 </td>
                 <td style={styles.td}>
-                  {parseCodes(o.trackingCode).length > 0
-                    ? parseCodes(o.trackingCode).map(c => (
-                        <span key={c} style={styles.trackChip}>{c}</span>
-                      ))
-                    : '—'}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {parseCodes(o.trackingCode).length > 0
+                      ? parseCodes(o.trackingCode).map(c => (
+                          <span key={c} style={styles.trackChip}>{c}</span>
+                        ))
+                      : <span>—</span>}
+                  </div>
                 </td>
                 <td style={styles.td}>
                   <button onClick={() => openEdit(o)} style={styles.btnEdit}>Editar</button>
@@ -379,6 +381,7 @@ const styles: Record<string, React.CSSProperties> = {
   sectionDivider: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: 8, marginBottom: 12 },
   itemTh: { padding: '6px 8px', textAlign: 'left' as const, color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border)' },
   itemTd: { padding: '6px 8px', color: 'var(--text-body)' },
+  trackChip: { display: 'inline-block', background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600 },
   trackChipEdit: { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#eff6ff', color: '#2563eb', padding: '3px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 },
   trackRemove: { background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: 0 },
   btnAdd: { padding: '8px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' },
