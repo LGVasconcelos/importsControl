@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { createHash, randomBytes } from 'crypto';
 import { MlToken } from './ml-token.entity';
 import { Product } from '../products/product.entity';
 import { StockService } from '../stock/stock.service';
@@ -21,26 +22,57 @@ export class MercadoLivreService {
     private readonly stockService: StockService,
   ) {}
 
-  getAuthUrl(): string {
+  private generateCodeVerifier(): string {
+    return randomBytes(32).toString('base64url');
+  }
+
+  private generateCodeChallenge(verifier: string): string {
+    return createHash('sha256').update(verifier).digest('base64url');
+  }
+
+  async getAuthUrl(): Promise<string> {
+    const codeVerifier = this.generateCodeVerifier();
+    const codeChallenge = this.generateCodeChallenge(codeVerifier);
+
+    // Salva o verifier temporariamente para usar no callback
+    const existing = await this.tokenRepo.findOne({ where: {} });
+    const token = existing || this.tokenRepo.create();
+    token.codeVerifier = codeVerifier;
+    // Campos obrigatórios com placeholders até o callback preencher
+    if (!token.accessToken) token.accessToken = '';
+    if (!token.refreshToken) token.refreshToken = '';
+    if (!token.mlUserId) token.mlUserId = '';
+    if (!token.expiresAt) token.expiresAt = 0;
+    await this.tokenRepo.save(token);
+
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: ML_CLIENT_ID,
       redirect_uri: ML_REDIRECT_URI,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
     });
     return `https://auth.mercadolivre.com.br/authorization?${params}`;
   }
 
   async handleCallback(code: string): Promise<void> {
+    const tokenRecord = await this.tokenRepo.findOne({ where: {} });
+    const codeVerifier = tokenRecord?.codeVerifier;
+    if (!codeVerifier) throw new Error('code_verifier não encontrado — tente conectar novamente');
+
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: ML_CLIENT_ID,
+      client_secret: ML_CLIENT_SECRET,
+      code,
+      redirect_uri: ML_REDIRECT_URI,
+      code_verifier: codeVerifier,
+    });
+
     const res = await fetch(`${ML_API}/oauth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: ML_CLIENT_ID,
-        client_secret: ML_CLIENT_SECRET,
-        code,
-        redirect_uri: ML_REDIRECT_URI,
-      }),
+      body,
     });
     const data = await res.json() as any;
     if (!data.access_token) {

@@ -8,8 +8,9 @@ export class MercadoLivreController {
   constructor(private readonly mlService: MercadoLivreService) {}
 
   @Get('auth')
-  auth(@Res() res: Response) {
-    return res.redirect(this.mlService.getAuthUrl());
+  async auth(@Res() res: Response) {
+    const url = await this.mlService.getAuthUrl();
+    return res.redirect(url);
   }
 
   @Get('callback')

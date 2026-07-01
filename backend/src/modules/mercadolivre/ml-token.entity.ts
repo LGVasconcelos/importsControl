@@ -20,6 +20,9 @@ export class MlToken {
   @Column({ type: 'bigint' })
   expiresAt: number;
 
+  @Column({ nullable: true, type: 'text' })
+  codeVerifier: string;
+
   @UpdateDateColumn()
   updatedAt: Date;
 }
