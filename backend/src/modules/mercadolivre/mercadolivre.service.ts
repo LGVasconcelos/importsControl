@@ -173,6 +173,9 @@ export class MercadoLivreService {
     // 3) atributo SELLER_SKU no array attributes
     const attr = obj?.attributes?.find((a: any) => a.id === 'SELLER_SKU');
     if (attr?.value_name) return attr.value_name as string;
+    // 4) attribute_combinations (usado em variações de alguns anúncios)
+    const combo = obj?.attribute_combinations?.find((a: any) => a.id === 'SELLER_SKU');
+    if (combo?.value_name) return combo.value_name as string;
     return undefined;
   }
 
@@ -235,10 +238,19 @@ export class MercadoLivreService {
             fullItem = await varRes.json() as any;
           } catch (_) { /* usa item do batch se falhar */ }
 
+          const itemSkuFallback = this.extractSku(fullItem);
+          debug.push(`[ITEM_VAR] ${itemId} → SKU_ITEM="${itemSkuFallback ?? 'N/A'}" variações=${(fullItem.variations || item.variations).length}`);
+
           let anyLinked = false;
+
+          // Tenta vincular por SKU de cada variação individualmente
           for (const variation of (fullItem.variations || item.variations)) {
             const varSku = this.extractSku(variation);
-            debug.push(`[VAR] ${itemId}:${variation.id} → SKU="${varSku ?? 'N/A'}" attrs=${JSON.stringify(variation.attributes?.map((a:any)=>a.id) ?? [])}`);
+            const attrIds = [
+              ...(variation.attributes?.map((a: any) => a.id) ?? []),
+              ...(variation.attribute_combinations?.map((a: any) => a.id) ?? []),
+            ];
+            debug.push(`[VAR] ${itemId}:${variation.id} → SKU="${varSku ?? 'N/A'}" attrIds=${JSON.stringify(attrIds)}`);
             if (!varSku) continue;
             const product = skuMap.get(varSku.toUpperCase());
             if (!product) { notFound.push(`${itemId}:${variation.id} (SKU: ${varSku})`); continue; }
@@ -246,6 +258,20 @@ export class MercadoLivreService {
             linked++;
             anyLinked = true;
           }
+
+          // Fallback: se nenhuma variação tem SKU, usa o SKU do item pai e vincula o item inteiro
+          if (!anyLinked && itemSkuFallback) {
+            const product = skuMap.get(itemSkuFallback.toUpperCase());
+            if (product) {
+              debug.push(`[FALLBACK] ${itemId} → vinculando item inteiro ao SKU "${itemSkuFallback}"`);
+              await this.addMlIdToProduct(product, itemId);
+              linked++;
+              anyLinked = true;
+            } else {
+              notFound.push(`${itemId} (SKU_ITEM: ${itemSkuFallback})`);
+            }
+          }
+
           if (!anyLinked) skipped++;
         } else {
           // Anúncio simples — tenta os três campos possíveis
