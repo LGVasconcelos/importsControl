@@ -13,6 +13,11 @@ export class OrdersController {
     return this.ordersService.syncCosts(body?.force);
   }
 
+  @Post('fix-tracking')
+  fixTracking() {
+    return this.ordersService.fixConcatenatedTracking();
+  }
+
   @Post()
   create(@Body() dto: CreateOrderDto, @Request() req: any) {
     return this.ordersService.create(dto, req.user.id);

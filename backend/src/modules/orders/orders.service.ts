@@ -133,6 +133,25 @@ export class OrdersService {
     return { message: 'Pedido removido com sucesso' };
   }
 
+  async fixConcatenatedTracking(): Promise<{ fixed: number; skipped: number }> {
+    const TRACKING_RE = /([A-Z]{2}\d{9}[A-Z]{2})/g;
+    const orders = await this.orderRepo.find();
+    let fixed = 0;
+    let skipped = 0;
+    for (const order of orders) {
+      const raw = order.trackingCode;
+      if (!raw || raw.includes(',')) { skipped++; continue; }
+      const matches = raw.match(TRACKING_RE);
+      if (matches && matches.length > 1) {
+        await this.orderRepo.update(order.id, { trackingCode: matches.join(', ') });
+        fixed++;
+      } else {
+        skipped++;
+      }
+    }
+    return { fixed, skipped };
+  }
+
   async syncCosts(force = false): Promise<{ synced: number; skipped: number }> {
     const orders = await this.orderRepo.find();
     let synced = 0;

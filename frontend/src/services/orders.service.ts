@@ -28,4 +28,5 @@ export const ordersService = {
   update: (id: number, data: Partial<Order>) => api.put<Order>(`/orders/${id}`, data).then(r => r.data),
   remove: (id: number) => api.delete(`/orders/${id}`).then(r => r.data),
   syncCosts: (force = true) => api.post<{ synced: number; skipped: number }>('/orders/sync-costs', { force }).then(r => r.data),
+  fixTracking: () => api.post<{ fixed: number; skipped: number }>('/orders/fix-tracking').then(r => r.data),
 };

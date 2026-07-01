@@ -62,7 +62,17 @@ export default function OrdersPage() {
     }
   };
 
-  const parseCodes = (v?: string) => v ? v.split(',').map(s => s.trim()).filter(Boolean) : [];
+  // Padrão de rastreio postal internacional: 2 letras + 9 dígitos + 2 letras (ex: NN287151109BR)
+  const TRACKING_RE = /[A-Z]{2}\d{9}[A-Z]{2}/g;
+  const parseCodes = (v?: string): string[] => {
+    if (!v) return [];
+    // Se contém vírgula, usa separação por vírgula
+    if (v.includes(',')) return v.split(',').map(s => s.trim()).filter(Boolean);
+    // Se parece múltiplos códigos concatenados, extrai pelo padrão
+    const matches = v.match(TRACKING_RE);
+    if (matches && matches.length > 1) return matches;
+    return v.trim() ? [v.trim()] : [];
+  };
 
   const load = () => { setLoading(true); ordersService.getAll().then(setOrders).finally(() => setLoading(false)); };
   useEffect(() => {
@@ -97,12 +107,17 @@ export default function OrdersPage() {
   const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
 
   const addTrackingCode = () => {
-    const code = trackingInput.trim();
-    if (!code) return;
-    const codes = parseCodes(form.trackingCode);
-    if (codes.includes(code)) { toast.error('Código já adicionado'); return; }
-    setForm(f => ({ ...f, trackingCode: [...codes, code].join(', ') }));
+    const raw = trackingInput.trim();
+    if (!raw) return;
+    // Detecta múltiplos códigos colados de uma vez
+    const newCodes = raw.includes(',') ? raw.split(',').map(s => s.trim()).filter(Boolean)
+      : (raw.match(TRACKING_RE) ?? [raw]);
+    const existing = parseCodes(form.trackingCode);
+    const toAdd = newCodes.filter(c => !existing.includes(c));
+    if (!toAdd.length) { toast.error('Código(s) já adicionado(s)'); return; }
+    setForm(f => ({ ...f, trackingCode: [...existing, ...toAdd].join(', ') }));
     setTrackingInput('');
+    if (toAdd.length > 1) toast.success(`${toAdd.length} códigos adicionados`);
   };
 
   const removeTrackingCode = (code: string) => {
@@ -148,6 +163,7 @@ export default function OrdersPage() {
         <h1 style={styles.title}>Pedidos de Importação</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={async () => { try { const r = await ordersService.syncCosts(); toast.success(`Custos sincronizados: ${r.synced} criados, ${r.skipped} já existiam`); } catch { toast.error('Erro ao sincronizar custos'); } }} style={styles.btnSync}>Sincronizar Custos</button>
+          <button onClick={async () => { try { const r = await ordersService.fixTracking(); toast.success(`Rastreios corrigidos: ${r.fixed}`); load(); } catch { toast.error('Erro ao corrigir rastreios'); } }} style={styles.btnSync}>Corrigir Rastreios</button>
           <button onClick={openCreate} style={styles.btnPrimary}>+ Novo Pedido</button>
         </div>
       </div>
