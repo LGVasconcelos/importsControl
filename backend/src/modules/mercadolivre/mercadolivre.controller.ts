@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Query, Param, ParseIntPipe, UseGuards, Res, Body, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Query, Param, ParseIntPipe, UseGuards, Res, Body, HttpCode, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { MercadoLivreService } from './mercadolivre.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -46,8 +46,15 @@ export class MercadoLivreController {
 
   @UseGuards(JwtAuthGuard)
   @Post('auto-link')
-  autoLink() {
-    return this.mlService.autoLinkBySku();
+  async autoLink() {
+    try {
+      return await this.mlService.autoLinkBySku();
+    } catch (e: any) {
+      throw new HttpException(
+        { message: e?.message || 'Erro interno no auto-link', stack: e?.stack?.split('\n').slice(0, 3).join(' | ') },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @UseGuards(JwtAuthGuard)
