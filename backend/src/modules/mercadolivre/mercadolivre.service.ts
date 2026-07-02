@@ -96,7 +96,7 @@ export class MercadoLivreService {
 
   async getStatus(): Promise<{ connected: boolean; nickname?: string; mlUserId?: string }> {
     const token = await this.tokenRepo.findOne({ where: {} });
-    if (!token) return { connected: false };
+    if (!token || !token.accessToken) return { connected: false };
     return { connected: true, nickname: token.nickname, mlUserId: token.mlUserId };
   }
 
@@ -107,9 +107,16 @@ export class MercadoLivreService {
 
   private async getValidToken(): Promise<string> {
     const token = await this.tokenRepo.findOne({ where: {} });
-    if (!token) throw new Error('Não conectado ao Mercado Livre');
+    if (!token || !token.accessToken) throw new Error('Não conectado ao Mercado Livre');
 
+    // Se o token ainda é válido, retorna diretamente
     if (Date.now() < Number(token.expiresAt) - 60_000) return token.accessToken;
+
+    // Tenta renovar
+    if (!token.refreshToken) {
+      await this.tokenRepo.clear();
+      throw new Error('Sessão expirada — reconecte o Mercado Livre');
+    }
 
     const res = await fetch(`${ML_API}/oauth/token`, {
       method: 'POST',
@@ -122,7 +129,12 @@ export class MercadoLivreService {
       }),
     });
     const data = await res.json() as any;
-    if (!data.access_token) throw new Error('Falha ao renovar token');
+    if (!data.access_token) {
+      // Refresh token inválido ou expirado — limpa sessão para forçar reconexão
+      const mlError = data.error_description || data.error || data.message || JSON.stringify(data);
+      await this.tokenRepo.clear();
+      throw new Error(`Sessão ML expirada — reconecte o Mercado Livre (${mlError})`);
+    }
 
     token.accessToken = data.access_token;
     token.refreshToken = data.refresh_token;
