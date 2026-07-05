@@ -129,6 +129,9 @@ input, select, textarea {
   .modal-item-grid {
     grid-template-columns: 1fr 1fr !important;
   }
+  .modal-item-grid > :first-child {
+    grid-column: 1 / -1;
+  }
   .modal-item-grid .modal-item-add-btn {
     grid-column: 1 / -1;
     width: 100%;

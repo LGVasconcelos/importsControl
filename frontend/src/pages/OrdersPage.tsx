@@ -283,7 +283,7 @@ export default function OrdersPage() {
             {/* Itens do Pedido */}
             <div style={{ marginTop: 20 }}>
               <div style={styles.sectionDivider}>Itens do Pedido</div>
-              <div className="modal-item-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
+              <div className="modal-item-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
                 <div style={styles.field}>
                   <label style={styles.label}>Produto *</label>
                   <select value={itemDraft.productId} onChange={e => { const p = products.find(x => x.id === Number(e.target.value)); setItemDraft(d => ({ ...d, productId: Number(e.target.value), unitPrice: p ? Number(p.costPrice) : d.unitPrice })); }} style={styles.input}>
@@ -372,7 +372,7 @@ const styles: Record<string, React.CSSProperties> = {
   btnEdit: { marginRight: 6, padding: '5px 10px', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnDel: { padding: '5px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' },
-  modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 700, maxHeight: '90dvh', overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box' },
+  modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 700, maxHeight: '90dvh', overflowY: 'auto', overflowX: 'clip', boxSizing: 'border-box' },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20 },
   grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, minWidth: 0 },
   field: { display: 'flex', flexDirection: 'column', gap: 4 },
