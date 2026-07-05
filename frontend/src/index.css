@@ -84,13 +84,19 @@ input, select, textarea {
 
   /* Modals: full screen on mobile */
   .modal-box {
+    width: 100% !important;
     max-width: 100% !important;
     max-height: 100dvh !important;
+    height: 100dvh !important;
     border-radius: 0 !important;
     margin: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
   }
   .modal-overlay {
     align-items: flex-end !important;
+    padding: 0 !important;
   }
 
   /* Sidebar close button visible on mobile */
@@ -138,6 +144,14 @@ input, select, textarea {
   }
   .modal-box {
     padding: 20px 16px !important;
+  }
+  /* Inputs dentro de modal não devem ter largura mínima */
+  .modal-box input,
+  .modal-box select,
+  .modal-box textarea {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   /* ── Responsive tables: linhas viram cards ── */
