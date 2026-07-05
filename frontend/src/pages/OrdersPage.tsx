@@ -228,10 +228,10 @@ export default function OrdersPage() {
       </div>
 
       {modal && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
+        <div style={styles.overlay} className="modal-overlay">
+          <div style={styles.modal} className="modal-box">
             <h2 style={styles.modalTitle}>{editing ? 'Editar Pedido' : 'Novo Pedido'}</h2>
-            <div style={styles.grid2}>
+            <div style={styles.grid2} className="modal-grid-2">
               <div style={styles.field}><label style={styles.label}>Nº do Pedido *</label><input value={form.orderNumber || ''} onChange={e => setForm(f => ({ ...f, orderNumber: e.target.value }))} style={styles.input} /></div>
               <div style={styles.field}><label style={styles.label}>Fornecedor *</label><input value={form.supplier || ''} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} style={styles.input} /></div>
               <div style={styles.field}><label style={styles.label}>Origem</label><input value={form.origin || ''} onChange={e => setForm(f => ({ ...f, origin: e.target.value }))} style={styles.input} /></div>
@@ -283,7 +283,7 @@ export default function OrdersPage() {
             {/* Itens do Pedido */}
             <div style={{ marginTop: 20 }}>
               <div style={styles.sectionDivider}>Itens do Pedido</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
+              <div className="modal-item-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
                 <div style={styles.field}>
                   <label style={styles.label}>Produto *</label>
                   <select value={itemDraft.productId} onChange={e => { const p = products.find(x => x.id === Number(e.target.value)); setItemDraft(d => ({ ...d, productId: Number(e.target.value), unitPrice: p ? Number(p.costPrice) : d.unitPrice })); }} style={styles.input}>
@@ -299,9 +299,10 @@ export default function OrdersPage() {
                   <label style={styles.label}>Preço Unit.</label>
                   <input type="number" min={0} step={0.01} value={itemDraft.unitPrice} onChange={e => setItemDraft(d => ({ ...d, unitPrice: Number(e.target.value) }))} style={styles.input} />
                 </div>
-                <button type="button" onClick={addItem} style={{ ...styles.btnAdd, alignSelf: 'flex-end' }}>+ Adicionar</button>
+                <button type="button" onClick={addItem} className="modal-item-add-btn" style={{ ...styles.btnAdd, alignSelf: 'flex-end' }}>+ Adicionar</button>
               </div>
               {items.length > 0 && (
+                <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--border)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 4 }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-thead)' }}>
@@ -336,6 +337,7 @@ export default function OrdersPage() {
                     </tr>
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
             <div style={styles.modalFooter}>
@@ -369,10 +371,10 @@ const styles: Record<string, React.CSSProperties> = {
   btnSync: { padding: '9px 18px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: '1.5px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
   btnEdit: { marginRight: 6, padding: '5px 10px', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnDel: { padding: '5px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 700, maxHeight: '90vh', overflow: 'auto' },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' },
+  modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 700, maxHeight: '90dvh', overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box' },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20 },
-  grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 },
+  grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, minWidth: 0 },
   field: { display: 'flex', flexDirection: 'column', gap: 4 },
   label: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' },
   input: { padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-body)' },

@@ -122,6 +122,21 @@ input, select, textarea {
     flex: 1 1 140px;
   }
 
+  /* ── Modal grids responsive ── */
+  .modal-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+  .modal-item-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .modal-item-grid .modal-item-add-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .modal-box {
+    padding: 20px 16px !important;
+  }
+
   /* ── Responsive tables: linhas viram cards ── */
   .responsive-table {
     border-collapse: separate !important;
