@@ -13,6 +13,7 @@
   --border: #e2e8f0;
   --border-row: #f1f5f9;
   --shadow: 0 1px 4px rgba(0,0,0,0.08);
+  --sidebar-w: 230px;
 }
 
 [data-theme="dark"] {
@@ -41,5 +42,71 @@ input, select, textarea {
   background: var(--bg-input) !important;
   color: var(--text-body) !important;
   border-color: var(--border) !important;
+}
+
+/* ── Responsive tables ── */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Mobile utility classes ── */
+@media (max-width: 768px) {
+  /* Main content padding */
+  .main-content {
+    padding: 16px !important;
+  }
+
+  /* Page headers: stack vertically */
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .page-header > div,
+  .page-header > button,
+  .page-header > a {
+    width: 100%;
+  }
+
+  /* Button groups wrap */
+  .btn-group {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* Cards: full width */
+  .stat-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Modals: full screen on mobile */
+  .modal-box {
+    max-width: 100% !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+  .modal-overlay {
+    align-items: flex-end !important;
+  }
+
+  /* Sidebar close button visible on mobile */
+  aside button[aria-label="Fechar menu"] {
+    display: block !important;
+  }
+
+  /* Dashboard row: stack chart + movements */
+  .dashboard-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 

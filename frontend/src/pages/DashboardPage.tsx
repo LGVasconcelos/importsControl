@@ -43,7 +43,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div style={styles.row}>
+      <div style={styles.row} className="dashboard-row">
         <div style={styles.chartBox}>
           <h2 style={styles.sectionTitle}>Pedidos por Status</h2>
           <ResponsiveContainer width="100%" height={240}>
