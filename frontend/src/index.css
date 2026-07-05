@@ -103,6 +103,25 @@ input, select, textarea {
     grid-template-columns: 1fr !important;
   }
 
+  /* ── Page headers: empilha título + botões no mobile ── */
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+  .page-header > button {
+    width: 100%;
+  }
+  .btn-group {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .btn-group > button {
+    flex: 1 1 140px;
+  }
+
   /* ── Responsive tables: linhas viram cards ── */
   .responsive-table {
     border-collapse: separate !important;

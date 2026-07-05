@@ -45,7 +45,7 @@ export default function CostsPage() {
 
   return (
     <div>
-      <div style={styles.header}>
+      <div style={styles.header} className="page-header">
         <div>
           <h1 style={styles.title}>Custos de Importação</h1>
           <p style={styles.total}>Total acumulado: <strong>R$ {totalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></p>

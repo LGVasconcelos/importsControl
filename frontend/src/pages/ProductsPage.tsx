@@ -67,7 +67,7 @@ export default function ProductsPage() {
 
   return (
     <div>
-      <div style={styles.header}>
+      <div style={styles.header} className="page-header">
         <h1 style={styles.title}>Produtos</h1>
         <button onClick={openCreate} style={styles.btnPrimary}>+ Novo Produto</button>
       </div>

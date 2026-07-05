@@ -196,10 +196,10 @@ export default function MercadoLivrePage() {
 
   return (
     <div>
-      <div style={styles.header}>
+      <div style={styles.header} className="page-header">
         <h1 style={styles.title}>🛒 Mercado Livre</h1>
         {connected && (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="btn-group" style={{ display: 'flex', gap: 8 }}>
             <button onClick={handleAutoLink} disabled={autoLinking} style={styles.btnAutoLink}>
               {autoLinking ? 'Vinculando...' : '🔗 Auto-vincular por SKU'}
             </button>

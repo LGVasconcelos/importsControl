@@ -159,9 +159,9 @@ export default function OrdersPage() {
 
   return (
     <div>
-      <div style={styles.header}>
+      <div style={styles.header} className="page-header">
         <h1 style={styles.title}>Pedidos de Importação</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="btn-group" style={{ display: 'flex', gap: 8 }}>
           <button onClick={async () => { try { const r = await ordersService.syncCosts(); toast.success(`Custos sincronizados: ${r.synced} criados, ${r.skipped} já existiam`); } catch { toast.error('Erro ao sincronizar custos'); } }} style={styles.btnSync}>Sincronizar Custos</button>
           <button onClick={async () => { try { const r = await ordersService.fixTracking(); toast.success(`Rastreios corrigidos: ${r.fixed}`); load(); } catch { toast.error('Erro ao corrigir rastreios'); } }} style={styles.btnSync}>Corrigir Rastreios</button>
           <button onClick={openCreate} style={styles.btnPrimary}>+ Novo Pedido</button>

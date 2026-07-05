@@ -37,7 +37,7 @@ export default function StockPage() {
 
   return (
     <div>
-      <div style={styles.header}>
+      <div style={styles.header} className="page-header">
         <h1 style={styles.title}>Movimentações de Estoque</h1>
         <button onClick={() => setModal(true)} style={styles.btnPrimary}>+ Nova Movimentação</button>
       </div>
