@@ -173,9 +173,9 @@ export default function OrdersPage() {
           {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </div>
-      <div style={styles.tableWrap}>
+      <div style={styles.tableWrap} className="responsive-table-wrap">
         {loading ? <div style={styles.loading}>Carregando...</div> : (
-        <table style={styles.table}>
+        <table style={styles.table} className="responsive-table">
           <thead>
             <tr style={styles.thead}>
               {['Nº Pedido', 'Fornecedor', 'Origem', 'Status', 'Data Pedido', 'Prev. Chegada', 'Valor Total', 'Produtos', 'Rastreio', 'Ações'].map(h => (
@@ -186,10 +186,10 @@ export default function OrdersPage() {
           <tbody>
             {filtered.map(o => (
               <tr key={o.id} style={styles.tr}>
-                <td style={styles.td}><span style={styles.sku}>{o.orderNumber}</span></td>
-                <td style={styles.td}>{o.supplier}</td>
-                <td style={styles.td}>{o.origin || '—'}</td>
-                <td style={styles.td}>
+                <td style={styles.td} data-label="Nº Pedido"><span style={styles.sku}>{o.orderNumber}</span></td>
+                <td style={styles.td} data-label="Fornecedor">{o.supplier}</td>
+                <td style={styles.td} data-label="Origem">{o.origin || '—'}</td>
+                <td style={styles.td} data-label="Status">
                   <select
                     value={o.status}
                     onChange={e => handleStatusChange(o.id, e.target.value as OrderStatus)}
@@ -198,15 +198,15 @@ export default function OrdersPage() {
                     {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </td>
-                <td style={styles.td}>{toDateInput(o.orderDate) || '—'}</td>
-                <td style={styles.td}>{toDateInput(o.expectedArrival) || '—'}</td>
-                <td style={styles.td}>{o.currency} {Number(o.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td style={styles.td}>
+                <td style={styles.td} data-label="Data Pedido">{toDateInput(o.orderDate) || '—'}</td>
+                <td style={styles.td} data-label="Prev. Chegada">{toDateInput(o.expectedArrival) || '—'}</td>
+                <td style={styles.td} data-label="Valor">{o.currency} {Number(o.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td style={styles.td} data-label="Produtos">
                   {o.items?.length
                     ? <span style={styles.itemsBadge}>{o.items.length} {o.items.length === 1 ? 'produto' : 'produtos'}</span>
                     : <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>—</span>}
                 </td>
-                <td style={styles.td}>
+                <td style={styles.td} data-label="Rastreio">
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {parseCodes(o.trackingCode).length > 0
                       ? parseCodes(o.trackingCode).map(c => (
@@ -215,7 +215,7 @@ export default function OrdersPage() {
                       : <span>—</span>}
                   </div>
                 </td>
-                <td style={styles.td}>
+                <td style={styles.td} data-label="">
                   <button onClick={() => openEdit(o)} style={styles.btnEdit}>Editar</button>
                   <button onClick={() => handleDelete(o.id)} style={styles.btnDel}>Remover</button>
                 </td>

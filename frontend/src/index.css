@@ -102,6 +102,60 @@ input, select, textarea {
   .dashboard-row {
     grid-template-columns: 1fr !important;
   }
+
+  /* ── Responsive tables: linhas viram cards ── */
+  .responsive-table {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+  .responsive-table thead {
+    display: none !important;
+  }
+  .responsive-table tbody tr {
+    display: block !important;
+    background: var(--bg-card);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .responsive-table td {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 14px !important;
+    font-size: 13px !important;
+    border-bottom: 1px solid var(--border-row) !important;
+    min-height: 38px;
+    gap: 8px;
+  }
+  .responsive-table td:last-child {
+    border-bottom: none !important;
+  }
+  .responsive-table td[data-label]::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    flex-shrink: 0;
+    min-width: 90px;
+  }
+  .responsive-table td[data-label=""] {
+    justify-content: flex-end;
+  }
+  .responsive-table td[data-label=""]::before {
+    display: none;
+  }
+  /* Remove tableWrap border-radius so cards show freely */
+  .responsive-table-wrap {
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
 }
 
 @media (max-width: 480px) {

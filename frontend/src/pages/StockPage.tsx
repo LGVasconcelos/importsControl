@@ -41,8 +41,8 @@ export default function StockPage() {
         <h1 style={styles.title}>Movimentações de Estoque</h1>
         <button onClick={() => setModal(true)} style={styles.btnPrimary}>+ Nova Movimentação</button>
       </div>
-      <div style={styles.tableWrap}>
-        <table style={styles.table}>
+      <div style={styles.tableWrap} className="responsive-table-wrap">
+        <table style={styles.table} className="responsive-table">
           <thead>
             <tr style={styles.thead}>
               {['Data', 'Produto', 'Tipo', 'Qtd', 'Antes', 'Depois', 'Motivo', 'Referência', 'Usuário'].map(h => (
@@ -53,15 +53,15 @@ export default function StockPage() {
           <tbody>
             {movements.map(m => (
               <tr key={m.id} style={styles.tr}>
-                <td style={styles.td}>{new Date(m.createdAt).toLocaleString('pt-BR')}</td>
-                <td style={styles.td}><b>{m.product?.name}</b><br /><span style={{ fontSize: 11, color: '#94a3b8' }}>{m.product?.sku}</span></td>
-                <td style={styles.td}><span style={{ ...styles.badge, color: typeColor[m.type], background: typeBg[m.type] }}>{typeLabel[m.type]}</span></td>
-                <td style={{ ...styles.td, fontWeight: 700 }}>{m.quantity}</td>
-                <td style={styles.td}>{m.stockBefore}</td>
-                <td style={styles.td}>{m.stockAfter}</td>
-                <td style={styles.td}>{m.reason || '—'}</td>
-                <td style={styles.td}>{m.orderReference || '—'}</td>
-                <td style={styles.td}>{m.user?.name || '—'}</td>
+                <td style={styles.td} data-label="Data">{new Date(m.createdAt).toLocaleString('pt-BR')}</td>
+                <td style={styles.td} data-label="Produto"><b>{m.product?.name}</b><br /><span style={{ fontSize: 11, color: '#94a3b8' }}>{m.product?.sku}</span></td>
+                <td style={styles.td} data-label="Tipo"><span style={{ ...styles.badge, color: typeColor[m.type], background: typeBg[m.type] }}>{typeLabel[m.type]}</span></td>
+                <td style={{ ...styles.td, fontWeight: 700 }} data-label="Qtd">{m.quantity}</td>
+                <td style={styles.td} data-label="Antes">{m.stockBefore}</td>
+                <td style={styles.td} data-label="Depois">{m.stockAfter}</td>
+                <td style={styles.td} data-label="Motivo">{m.reason || '—'}</td>
+                <td style={styles.td} data-label="Referência">{m.orderReference || '—'}</td>
+                <td style={styles.td} data-label="Usuário">{m.user?.name || '—'}</td>
               </tr>
             ))}
           </tbody>

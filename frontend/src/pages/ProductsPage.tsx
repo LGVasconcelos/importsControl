@@ -74,8 +74,8 @@ export default function ProductsPage() {
       <div style={styles.toolbar}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou SKU..." style={styles.searchInput} />
       </div>
-      <div style={styles.tableWrap}>
-        <table style={styles.table}>
+      <div style={styles.tableWrap} className="responsive-table-wrap">
+        <table style={styles.table} className="responsive-table">
           <thead>
             <tr style={styles.thead}>
               {['SKU', 'Nome', 'Fornecedor', 'Origem', 'Estoque', 'Mín.', 'Custo (R$)', 'Venda (R$)', 'Ações'].map(h => (
@@ -86,19 +86,19 @@ export default function ProductsPage() {
           <tbody>
             {products.map(p => (
               <tr key={p.id} style={styles.tr}>
-                <td style={styles.td}><span style={styles.sku}>{p.sku}</span></td>
-                <td style={styles.td}>{p.name}</td>
-                <td style={styles.td}>{p.supplier || '—'}</td>
-                <td style={styles.td}>{p.origin || '—'}</td>
-                <td style={styles.td}>
+                <td style={styles.td} data-label="SKU"><span style={styles.sku}>{p.sku}</span></td>
+                <td style={styles.td} data-label="Nome">{p.name}</td>
+                <td style={styles.td} data-label="Fornecedor">{p.supplier || '—'}</td>
+                <td style={styles.td} data-label="Origem">{p.origin || '—'}</td>
+                <td style={styles.td} data-label="Estoque">
                   <span style={{ ...styles.stockBadge, color: p.currentStock <= p.minimumStock && p.minimumStock > 0 ? '#dc2626' : '#16a34a', background: p.currentStock <= p.minimumStock && p.minimumStock > 0 ? '#fee2e2' : '#dcfce7' }}>
                     {p.currentStock} {p.unit}
                   </span>
                 </td>
-                <td style={styles.td}>{p.minimumStock}</td>
-                <td style={styles.td}>{Number(p.costPrice).toFixed(2)}</td>
-                <td style={styles.td}>{Number(p.salePrice).toFixed(2)}</td>
-                <td style={styles.td}>
+                <td style={styles.td} data-label="Mín.">{p.minimumStock}</td>
+                <td style={styles.td} data-label="Custo">{Number(p.costPrice).toFixed(2)}</td>
+                <td style={styles.td} data-label="Venda">{Number(p.salePrice).toFixed(2)}</td>
+                <td style={styles.td} data-label="">
                   <button onClick={() => openEdit(p)} style={styles.btnEdit}>Editar</button>
                   <button onClick={() => openAdj(p)} style={styles.btnStock}>Estoque</button>
                   <button onClick={() => handleDelete(p.id)} style={styles.btnDel}>Desativar</button>

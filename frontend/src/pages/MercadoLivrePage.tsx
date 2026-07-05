@@ -268,11 +268,11 @@ export default function MercadoLivrePage() {
               )}
             </div>
           )}
-          <div style={styles.tableWrap}>
+          <div style={styles.tableWrap} className="responsive-table-wrap">
             {loading ? (
               <div style={styles.empty}>Carregando...</div>
             ) : (
-              <table style={styles.table}>
+              <table style={styles.table} className="responsive-table">
                 <thead>
                   <tr style={styles.thead}>
                     {['SKU', 'Nome', 'Estoque', 'Anúncios ML', 'Ações'].map(h => (
@@ -285,19 +285,19 @@ export default function MercadoLivrePage() {
                     const ids = parseIds(mlIds[p.id]);
                     return (
                       <tr key={p.id} style={styles.tr}>
-                        <td style={styles.td}><span style={styles.sku}>{p.sku}</span></td>
-                        <td style={styles.td}>{p.name}</td>
-                        <td style={styles.td}>
+                        <td style={styles.td} data-label="SKU"><span style={styles.sku}>{p.sku}</span></td>
+                        <td style={styles.td} data-label="Nome">{p.name}</td>
+                        <td style={styles.td} data-label="Estoque">
                           <span style={{ ...styles.stockBadge, color: p.currentStock <= p.minimumStock && p.minimumStock > 0 ? '#dc2626' : '#16a34a', background: p.currentStock <= p.minimumStock && p.minimumStock > 0 ? '#fee2e2' : '#dcfce7' }}>
                             {p.currentStock} {p.unit}
                           </span>
                         </td>
-                        <td style={styles.td}>
+                        <td style={styles.td} data-label="Anúncios ML">
                           <button onClick={() => openMlModal(p)} style={ids.length > 0 ? styles.mlBadgeBtn : styles.mlBadgeBtnEmpty}>
                             {ids.length > 0 ? `🔗 ${ids.length} anúncio${ids.length > 1 ? 's' : ''}` : '+ Vincular'}
                           </button>
                         </td>
-                        <td style={styles.td}>
+                        <td style={styles.td} data-label="">
                           {ids.length > 0 && (
                             <button onClick={() => handleSyncOne(p.id, p.sku)} style={styles.btnSyncOne}>
                               ↑ Sincronizar

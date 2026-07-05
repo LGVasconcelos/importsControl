@@ -52,8 +52,8 @@ export default function CostsPage() {
         </div>
         <button onClick={() => setModal(true)} style={styles.btnPrimary}>+ Novo Custo</button>
       </div>
-      <div style={styles.tableWrap}>
-        <table style={styles.table}>
+      <div style={styles.tableWrap} className="responsive-table-wrap">
+        <table style={styles.table} className="responsive-table">
           <thead>
             <tr style={styles.thead}>
               {['Pedido', 'Descrição', 'Tipo', 'Valor', 'Moeda', 'Taxa', 'Valor BRL', 'Observação', 'Ações'].map(h => (
@@ -64,15 +64,15 @@ export default function CostsPage() {
           <tbody>
             {costs.map(c => (
               <tr key={c.id} style={styles.tr}>
-                <td style={styles.td}><span style={styles.sku}>{c.order?.orderNumber || `#${c.orderId}`}</span></td>
-                <td style={styles.td}>{c.description}</td>
-                <td style={styles.td}>{c.costType || '—'}</td>
-                <td style={styles.td}>{Number(c.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td style={styles.td}>{c.currency}</td>
-                <td style={styles.td}>{Number(c.exchangeRate).toFixed(4)}</td>
-                <td style={{ ...styles.td, fontWeight: 700 }}>R$ {Number(c.valueInBrl || c.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td style={styles.td}>{c.notes || '—'}</td>
-                <td style={styles.td}><button onClick={() => handleDelete(c.id)} style={styles.btnDel}>Remover</button></td>
+                <td style={styles.td} data-label="Pedido"><span style={styles.sku}>{c.order?.orderNumber || `#${c.orderId}`}</span></td>
+                <td style={styles.td} data-label="Descrição">{c.description}</td>
+                <td style={styles.td} data-label="Tipo">{c.costType || '—'}</td>
+                <td style={styles.td} data-label="Valor">{Number(c.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td style={styles.td} data-label="Moeda">{c.currency}</td>
+                <td style={styles.td} data-label="Taxa">{Number(c.exchangeRate).toFixed(4)}</td>
+                <td style={{ ...styles.td, fontWeight: 700 }} data-label="Valor BRL">R$ {Number(c.valueInBrl || c.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td style={styles.td} data-label="Obs.">{c.notes || '—'}</td>
+                <td style={styles.td} data-label=""><button onClick={() => handleDelete(c.id)} style={styles.btnDel}>Remover</button></td>
               </tr>
             ))}
           </tbody>

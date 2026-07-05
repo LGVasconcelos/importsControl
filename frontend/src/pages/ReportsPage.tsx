@@ -51,20 +51,20 @@ export default function ReportsPage() {
       </div>
 
       {tab === 'stock' && (
-        <div style={styles.tableWrap}>
-          <table style={styles.table}>
+        <div style={styles.tableWrap} className="responsive-table-wrap">
+          <table style={styles.table} className="responsive-table">
             <thead><tr style={styles.thead}>{['SKU', 'Produto', 'Categoria', 'Estoque Atual', 'Estoque Mín.', 'Unidade', 'Custo Unit.', 'Status'].map(h => <th key={h} style={styles.th}>{h}</th>)}</tr></thead>
             <tbody>
               {stockData.map((p: any) => (
                 <tr key={p.id} style={styles.tr}>
-                  <td style={styles.td}><span style={styles.sku}>{p.sku}</span></td>
-                  <td style={styles.td}>{p.name}</td>
-                  <td style={styles.td}>{p.category || '—'}</td>
-                  <td style={{ ...styles.td, fontWeight: 700 }}>{p.currentStock}</td>
-                  <td style={styles.td}>{p.minimumStock}</td>
-                  <td style={styles.td}>{p.unit}</td>
-                  <td style={styles.td}>R$ {Number(p.costPrice).toFixed(2)}</td>
-                  <td style={styles.td}>
+                  <td style={styles.td} data-label="SKU"><span style={styles.sku}>{p.sku}</span></td>
+                  <td style={styles.td} data-label="Produto">{p.name}</td>
+                  <td style={styles.td} data-label="Categoria">{p.category || '—'}</td>
+                  <td style={{ ...styles.td, fontWeight: 700 }} data-label="Estoque">{p.currentStock}</td>
+                  <td style={styles.td} data-label="Mín.">{p.minimumStock}</td>
+                  <td style={styles.td} data-label="Unidade">{p.unit}</td>
+                  <td style={styles.td} data-label="Custo">R$ {Number(p.costPrice).toFixed(2)}</td>
+                  <td style={styles.td} data-label="Status">
                     {p.currentStock <= p.minimumStock && p.minimumStock > 0
                       ? <span style={styles.danger}>⚠️ Crítico</span>
                       : <span style={styles.ok}>✓ Normal</span>}
@@ -90,17 +90,17 @@ export default function ReportsPage() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div style={styles.tableWrap}>
-            <table style={styles.table}>
+          <div style={styles.tableWrap} className="responsive-table-wrap">
+            <table style={styles.table} className="responsive-table">
               <thead><tr style={styles.thead}>{['Pedido', 'Fornecedor', 'Status', 'Valor', 'Criado em'].map(h => <th key={h} style={styles.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {(orderData?.orders || []).map((o: any) => (
                   <tr key={o.id} style={styles.tr}>
-                    <td style={styles.td}><span style={styles.sku}>{o.orderNumber}</span></td>
-                    <td style={styles.td}>{o.supplier}</td>
-                    <td style={styles.td}>{statusLabel[o.status]}</td>
-                    <td style={styles.td}>{o.currency} {Number(o.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                    <td style={styles.td}>{new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
+                    <td style={styles.td} data-label="Pedido"><span style={styles.sku}>{o.orderNumber}</span></td>
+                    <td style={styles.td} data-label="Fornecedor">{o.supplier}</td>
+                    <td style={styles.td} data-label="Status">{statusLabel[o.status]}</td>
+                    <td style={styles.td} data-label="Valor">{o.currency} {Number(o.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td style={styles.td} data-label="Criado em">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -110,17 +110,17 @@ export default function ReportsPage() {
       )}
 
       {tab === 'costs' && (
-        <div style={styles.tableWrap}>
-          <table style={styles.table}>
+        <div style={styles.tableWrap} className="responsive-table-wrap">
+          <table style={styles.table} className="responsive-table">
             <thead><tr style={styles.thead}>{['Pedido', 'Fornecedor', 'Valor Pedido', 'Custo Total (BRL)', '# Custos'].map(h => <th key={h} style={styles.th}>{h}</th>)}</tr></thead>
             <tbody>
               {costData.map((o: any) => (
                 <tr key={o.id} style={styles.tr}>
-                  <td style={styles.td}><span style={styles.sku}>{o.orderNumber}</span></td>
-                  <td style={styles.td}>{o.supplier}</td>
-                  <td style={styles.td}>{o.currency} {Number(o.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td style={{ ...styles.td, fontWeight: 700 }}>R$ {Number(o.totalCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td style={styles.td}>{o.costs?.length}</td>
+                  <td style={styles.td} data-label="Pedido"><span style={styles.sku}>{o.orderNumber}</span></td>
+                  <td style={styles.td} data-label="Fornecedor">{o.supplier}</td>
+                  <td style={styles.td} data-label="Valor">{o.currency} {Number(o.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                  <td style={{ ...styles.td, fontWeight: 700 }} data-label="Total BRL">R$ {Number(o.totalCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                  <td style={styles.td} data-label="# Custos">{o.costs?.length}</td>
                 </tr>
               ))}
             </tbody>
