@@ -116,10 +116,10 @@ export default function StockPage() {
 const styles: Record<string, React.CSSProperties> = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   title: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' },
-  tableWrap: { background: 'var(--bg-card)', borderRadius: 12, boxShadow: 'var(--shadow)', overflow: 'auto' },
+  tableWrap: { background: 'var(--bg-card)', borderRadius: 12, boxShadow: 'var(--shadow)', overflowY: 'auto', overflowX: 'auto', maxHeight: 'calc(100vh - 200px)', minHeight: 200 },
   table: { width: '100%', borderCollapse: 'collapse' },
   thead: { background: 'var(--bg-thead)' },
-  th: { padding: '12px 14px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' },
+  th: { padding: '12px 14px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg-thead)', zIndex: 1 },
   tr: { borderBottom: '1px solid var(--border-row)' },
   td: { padding: '11px 14px', fontSize: 13, color: 'var(--text-body)' },
   badge: { padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 },
