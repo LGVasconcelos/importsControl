@@ -109,6 +109,11 @@ input, select, textarea {
     grid-template-columns: 1fr !important;
   }
 
+  /* Stat cards: 2 colunas no mobile */
+  .stat-row-products {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
   /* ── Page headers: empilha título + botões no mobile ── */
   .page-header {
     flex-direction: column !important;
