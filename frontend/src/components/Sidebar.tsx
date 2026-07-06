@@ -30,7 +30,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <aside style={{ ...styles.sidebar, transform: open ? 'translateX(0)' : undefined }}>
       <div style={styles.logo}>
-        <img src="/logo.png" alt="Versian Parts" style={{ height: 52, width: 'auto', objectFit: 'contain' }} />
+        <img src="/logo.png" alt="Versian Parts" style={{ width: 160, height: 'auto', objectFit: 'contain' }} />
         <button onClick={onClose} style={styles.closeBtn} aria-label="Fechar menu">✕</button>
       </div>
       <nav style={styles.nav}>
@@ -76,7 +76,7 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'transform 0.25s ease',
     zIndex: 200,
   },
-  logo: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 16px', borderBottom: '1px solid #334155' },
+  logo: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '16px 14px', borderBottom: '1px solid #334155' },
   logoText: { color: '#f1f5f9', fontWeight: 700, fontSize: 16, letterSpacing: 0.5, flex: 1 },
   closeBtn: { background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, display: 'none', padding: 4 },
   nav: { flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 4 },
