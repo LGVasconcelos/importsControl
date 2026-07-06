@@ -30,7 +30,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <aside style={{ ...styles.sidebar, transform: open ? 'translateX(0)' : undefined }}>
       <div style={styles.logo}>
-        <img src="/logo.png" alt="Versian Parts" style={{ height: 38, objectFit: 'contain' }} />
+        <img src="/logo.png" alt="Versian Parts" style={{ height: 56, objectFit: 'contain' }} />
         <button onClick={onClose} style={styles.closeBtn} aria-label="Fechar menu">✕</button>
       </div>
       <nav style={styles.nav}>
