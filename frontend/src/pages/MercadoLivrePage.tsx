@@ -288,7 +288,10 @@ export default function MercadoLivrePage() {
                         <td style={styles.td} data-label="SKU"><span style={styles.sku}>{p.sku}</span></td>
                         <td style={styles.td} data-label="Nome">{p.name}</td>
                         <td style={styles.td} data-label="Estoque">
-                          <span style={{ ...styles.stockBadge, color: p.currentStock <= p.minimumStock && p.minimumStock > 0 ? '#dc2626' : '#16a34a', background: p.currentStock <= p.minimumStock && p.minimumStock > 0 ? '#fee2e2' : '#dcfce7' }}>
+                          <span style={{ ...styles.stockBadge,
+                            color: p.currentStock <= 0 ? '#dc2626' : p.currentStock < p.minimumStock && p.minimumStock > 0 ? '#92400e' : '#16a34a',
+                            background: p.currentStock <= 0 ? '#fee2e2' : p.currentStock < p.minimumStock && p.minimumStock > 0 ? '#fef3c7' : '#dcfce7'
+                          }}>
                             {p.currentStock} {p.unit}
                           </span>
                         </td>
