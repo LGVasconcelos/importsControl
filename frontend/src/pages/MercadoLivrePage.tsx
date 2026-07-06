@@ -34,6 +34,9 @@ export default function MercadoLivrePage() {
   const [variations, setVariations] = useState<MlVariation[]>([]);
   const [varError, setVarError] = useState('');
 
+  // Busca de produtos
+  const [search, setSearch] = useState('');
+
   useEffect(() => {
     if (searchParams.get('connected') === 'true') toast.success('Mercado Livre conectado!');
     const err = searchParams.get('error');
@@ -268,6 +271,14 @@ export default function MercadoLivrePage() {
               )}
             </div>
           )}
+          <div style={styles.toolbar}>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar por nome ou SKU..."
+              style={styles.searchInput}
+            />
+          </div>
           <div style={styles.tableWrap} className="responsive-table-wrap">
             {loading ? (
               <div style={styles.empty}>Carregando...</div>
@@ -281,7 +292,11 @@ export default function MercadoLivrePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map(p => {
+                  {products.filter(p =>
+                    !search ||
+                    p.name.toLowerCase().includes(search.toLowerCase()) ||
+                    p.sku.toLowerCase().includes(search.toLowerCase())
+                  ).map(p => {
                     const ids = parseIds(mlIds[p.id]);
                     return (
                       <tr key={p.id} style={styles.tr}>
@@ -310,8 +325,12 @@ export default function MercadoLivrePage() {
                       </tr>
                     );
                   })}
-                  {products.length === 0 && (
-                    <tr><td colSpan={5} style={styles.empty}>Nenhum produto cadastrado.</td></tr>
+                  {products.filter(p =>
+                    !search ||
+                    p.name.toLowerCase().includes(search.toLowerCase()) ||
+                    p.sku.toLowerCase().includes(search.toLowerCase())
+                  ).length === 0 && (
+                    <tr><td colSpan={5} style={styles.empty}>Nenhum produto encontrado.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -469,6 +488,8 @@ export default function MercadoLivrePage() {
 
 const styles: Record<string, React.CSSProperties> = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  toolbar: { marginBottom: 16 },
+  searchInput: { padding: '9px 14px', border: '1.5px solid var(--border)', borderRadius: 8, width: 300, maxWidth: '100%', fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-body)' },
   title: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' },
   statusCard: { background: 'var(--bg-card)', borderRadius: 12, padding: '18px 24px', marginBottom: 20, boxShadow: 'var(--shadow)' },
   dot: { display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#16a34a', marginRight: 8 },
