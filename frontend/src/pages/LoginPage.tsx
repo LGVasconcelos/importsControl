@@ -28,8 +28,7 @@ export default function LoginPage() {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <span style={{ fontSize: 40 }}>🌐</span>
-          <h1 style={styles.title}>ImportsControl</h1>
+          <img src="/logo.png" alt="Versian Parts" style={{ height: 90, objectFit: 'contain', marginBottom: 8 }} />
           <p style={styles.subtitle}>Sistema de Controle de Estoque</p>
         </div>
         <form onSubmit={handleSubmit} style={styles.form}>
