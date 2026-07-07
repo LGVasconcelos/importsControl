@@ -27,8 +27,8 @@ export class MercadoLivreController {
 
   @Post('webhook')
   @HttpCode(200)
-  webhook(@Body() body: any) {
-    this.mlService.handleWebhook(body).catch(() => {});
+  async webhook(@Body() body: any) {
+    await this.mlService.handleWebhook(body).catch(() => {});
     return { ok: true };
   }
 

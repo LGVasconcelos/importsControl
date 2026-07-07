@@ -391,6 +391,12 @@ export class MercadoLivreService {
     if (mlOrder.status !== 'paid') return;
 
     const mlOrderRef = `ML-${orderId}`;
+
+    // Idempotência: se já processamos este pedido, ignora
+    const existing = await this.stockService.findAll();
+    const alreadyProcessed = existing.some(m => m.orderReference === mlOrderRef);
+    if (alreadyProcessed) return;
+
     const allProducts = await this.productRepo.find({ where: { active: true } });
 
     for (const item of (mlOrder.order_items || [])) {
@@ -411,19 +417,18 @@ export class MercadoLivreService {
       const qty = Math.round(Number(item.quantity));
       if (qty <= 0) continue;
 
-      // Baixa estoque
-      await this.stockService.createMovement({
+      // Força a baixa mesmo se estoque for insuficiente (venda já aconteceu)
+      await this.stockService.createForcedExit({
         productId: product.id,
-        type: MovementType.EXIT,
         quantity: qty,
         reason: `Venda Mercado Livre - Pedido #${orderId}`,
         orderReference: mlOrderRef,
-      }, 0).catch(() => {});
+      });
 
-      // Após baixa, auto-pausa se estoque chegou a 0
-      const updatedProduct = await this.productRepo.findOne({ where: { id: product.id } });
-      if (updatedProduct && updatedProduct.currentStock <= 0) {
-        await this.pauseProductListings(updatedProduct, accessToken).catch(() => {});
+      // Auto-pausa se estoque chegou a 0 ou negativo
+      const updated = await this.productRepo.findOne({ where: { id: product.id } });
+      if (updated && updated.currentStock <= 0) {
+        await this.pauseProductListings(product, accessToken).catch(() => {});
       }
     }
   }

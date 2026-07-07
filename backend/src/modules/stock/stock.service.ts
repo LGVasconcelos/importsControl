@@ -49,6 +49,25 @@ export class StockService {
     return this.movementRepo.find({ where, order: { createdAt: 'DESC' } });
   }
 
+  /** Força saída de estoque sem validar quantidade mínima (uso interno: webhooks) */
+  async createForcedExit(dto: { productId: number; quantity: number; reason: string; orderReference: string }): Promise<void> {
+    const product = await this.productRepo.findOne({ where: { id: dto.productId } });
+    if (!product) return;
+    const stockBefore = product.currentStock;
+    const stockAfter = stockBefore - dto.quantity;
+    await this.productRepo.update(dto.productId, { currentStock: stockAfter });
+    await this.movementRepo.save(this.movementRepo.create({
+      productId: dto.productId,
+      type: MovementType.EXIT,
+      quantity: dto.quantity,
+      reason: dto.reason,
+      orderReference: dto.orderReference,
+      stockBefore,
+      stockAfter,
+      userId: 0,
+    }));
+  }
+
   findByProduct(productId: number): Promise<StockMovement[]> {
     return this.movementRepo.find({ where: { productId }, order: { createdAt: 'DESC' } });
   }
