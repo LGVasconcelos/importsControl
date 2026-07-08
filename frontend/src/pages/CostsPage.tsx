@@ -184,7 +184,7 @@ export default function CostsPage() {
                             <td style={styles.td}>R$ {o.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                             <td style={{ ...styles.td, fontWeight: 700, color: '#dc2626', fontSize: 12 }}>−R$ {o.fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                             <td style={{ ...styles.td, fontWeight: 700, color: '#16a34a' }}>R$ {o.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                            <td style={{ ...styles.td, fontSize: 11, color: 'var(--text-secondary)' }}>{o.debug.formula}</td>
+                            <td style={{ ...styles.td, fontSize: 10, color: 'var(--text-secondary)', maxWidth: 280, wordBreak: 'break-all' }}>{o.debug.formula}<br/><em>{o.debug.shipment_raw}</em></td>
                           </tr>
                         ))}
                       </tbody>
