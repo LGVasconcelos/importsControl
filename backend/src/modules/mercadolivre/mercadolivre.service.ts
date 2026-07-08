@@ -563,16 +563,31 @@ export class MercadoLivreService {
 
     let totalRevenue = 0;
     let totalFees = 0;
+    let totalNet = 0;
     const orders = allOrders.map((o: any) => {
       const total = Number(o.total_amount || 0);
-      const fee = Number(o.taxes?.amount || 0) + Number(o.coupon?.amount || 0);
+
+      // Valor líquido: soma de net_received_amount dos pagamentos (o que o vendedor recebe de fato)
+      const netFromPayments = (o.payments || []).reduce(
+        (s: number, p: any) => s + Number(p.net_received_amount || 0), 0,
+      );
+      // Fallback: total - soma das taxas de comissão por item (sale_fee)
+      const saleFees = (o.order_items || []).reduce(
+        (s: number, i: any) => s + Number(i.sale_fee || 0), 0,
+      );
+      const net = netFromPayments > 0 ? netFromPayments : (total - saleFees);
+      const fee = total - net;
+
       totalRevenue += total;
       totalFees += fee;
+      totalNet += net;
+
       return {
         id: String(o.id),
         date: o.date_created,
         total,
         fee,
+        net,
         items: (o.order_items || []).map((i: any) => ({
           title: i.item?.title || '',
           quantity: Number(i.quantity),
@@ -581,6 +596,6 @@ export class MercadoLivreService {
       };
     });
 
-    return { totalRevenue, totalOrders: allOrders.length, totalFees, netRevenue: totalRevenue - totalFees, orders };
+    return { totalRevenue, totalOrders: allOrders.length, totalFees, netRevenue: totalNet, orders };
   }
 }

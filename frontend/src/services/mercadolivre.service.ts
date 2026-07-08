@@ -33,7 +33,7 @@ export interface MlSalesSummary {
   totalOrders: number;
   totalFees: number;
   netRevenue: number;
-  orders: { id: string; date: string; total: number; fee: number; items: { title: string; quantity: number; unitPrice: number }[] }[];
+  orders: { id: string; date: string; total: number; fee: number; net: number; items: { title: string; quantity: number; unitPrice: number }[] }[];
 }
 
 export const mercadolivreService = {

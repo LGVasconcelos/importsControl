@@ -66,7 +66,8 @@ export default function CostsPage() {
   };
 
   const totalBrl = costs.reduce((s, c) => s + Number(c.valueInBrl || c.value), 0);
-  const balance = salesSummary ? salesSummary.totalRevenue - totalBrl : null;
+  // Balanço usa o valor líquido recebido do ML (após taxas) menos os custos de importação
+  const balance = salesSummary ? salesSummary.netRevenue - totalBrl : null;
 
   return (
     <div>
@@ -139,11 +140,13 @@ export default function CostsPage() {
               {/* Summary cards */}
               <div style={styles.balanceCards}>
                 <div style={{ ...styles.card, borderTop: '3px solid #16a34a' }}>
-                  <div style={styles.cardLabel}>Entrada (Vendas ML)</div>
+                  <div style={styles.cardLabel}>Entrada (Líquido ML)</div>
                   <div style={{ ...styles.cardValue, color: '#16a34a' }}>
-                    R$ {salesSummary.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {salesSummary.netRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </div>
-                  <div style={styles.cardSub}>{salesSummary.totalOrders} pedido(s) pago(s)</div>
+                  <div style={styles.cardSub}>
+                    {salesSummary.totalOrders} pedido(s) · bruto R$ {salesSummary.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · taxas ML R$ {salesSummary.totalFees.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
                 </div>
                 <div style={{ ...styles.card, borderTop: '3px solid #dc2626' }}>
                   <div style={styles.cardLabel}>Saída (Custos de Importação)</div>
@@ -157,9 +160,7 @@ export default function CostsPage() {
                   <div style={{ ...styles.cardValue, color: balance !== null && balance >= 0 ? '#2563eb' : '#f59e0b' }}>
                     R$ {balance !== null ? balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
                   </div>
-                  {salesSummary.totalFees > 0 && (
-                    <div style={styles.cardSub}>Taxas ML: R$ {salesSummary.totalFees.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                  )}
+                  <div style={styles.cardSub}>Líquido ML − Custos de Importação</div>
                 </div>
               </div>
 
@@ -171,7 +172,7 @@ export default function CostsPage() {
                     <table style={styles.table}>
                       <thead>
                         <tr style={styles.thead}>
-                          {['Pedido ML', 'Data', 'Itens', 'Total'].map(h => <th key={h} style={styles.th}>{h}</th>)}
+                          {['Pedido ML', 'Data', 'Itens', 'Bruto', 'Taxa ML', 'Líquido'].map(h => <th key={h} style={styles.th}>{h}</th>)}
                         </tr>
                       </thead>
                       <tbody>
@@ -180,7 +181,9 @@ export default function CostsPage() {
                             <td style={styles.td}><span style={styles.sku}>#{o.id}</span></td>
                             <td style={styles.td}>{new Date(o.date).toLocaleDateString('pt-BR')}</td>
                             <td style={styles.td}>{o.items.map(i => `${i.quantity}× ${i.title}`).join(', ') || '—'}</td>
-                            <td style={{ ...styles.td, fontWeight: 700, color: '#16a34a' }}>R$ {o.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td style={styles.td}>R$ {o.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td style={{ ...styles.td, fontWeight: 700, color: '#dc2626', fontSize: 12 }}>−R$ {o.fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td style={{ ...styles.td, fontWeight: 700, color: '#16a34a' }}>R$ {o.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                           </tr>
                         ))}
                       </tbody>
