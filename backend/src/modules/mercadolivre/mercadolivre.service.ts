@@ -567,18 +567,18 @@ export class MercadoLivreService {
     const orders = allOrders.map((o: any) => {
       const total = Number(o.total_amount || 0);
 
-      // Valor líquido: soma de net_received_amount dos pagamentos (o que o vendedor recebe de fato)
+      // Valor líquido: soma de net_received_amount dos pagamentos (desconta comissão ML)
       const netFromPayments = (o.payments || []).reduce(
         (s: number, p: any) => s + Number(p.net_received_amount || 0), 0,
       );
-      // Fallback: total - comissão por item - custo de frete do vendedor (frete grátis/frete ML)
+      // Fallback: total - comissão por item
       const saleFees = (o.order_items || []).reduce(
         (s: number, i: any) => s + Number(i.sale_fee || 0), 0,
       );
+      // Custo de frete que o vendedor arca — sempre subtraído separadamente
       const senderShippingCost = Number(o.shipping?.sender_cost || 0);
-      const net = netFromPayments > 0
-        ? netFromPayments  // já inclui todas as deduções (comissão + frete)
-        : Math.max(0, total - saleFees - senderShippingCost);
+      const baseNet = netFromPayments > 0 ? netFromPayments : (total - saleFees);
+      const net = Math.max(0, baseNet - senderShippingCost);
       const fee = total - net;
 
       totalRevenue += total;
