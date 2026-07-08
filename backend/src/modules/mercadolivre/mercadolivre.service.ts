@@ -609,6 +609,7 @@ export class MercadoLivreService {
     let totalRevenue = 0;
     let totalFees = 0;
     let totalNet = 0;
+    const chargedShipments = new Set<string>(); // cada shipment_id cobrado só uma vez
     const orders = allOrders.map((o: any) => {
       // Usa dados detalhados do pedido (payments completos) quando disponível
       const detail = orderDetailMap.get(String(o.id)) || o;
@@ -635,8 +636,16 @@ export class MercadoLivreService {
       }
       const mergedItems = Array.from(itemMap.values());
       const saleFees = mergedItems.reduce((s: number, i: any) => s + Number(i.sale_fee || 0), 0);
-      // Custo de frete cobrado do vendedor (buscado via /shipments)
-      const shippingCost = o.shipping?.id ? (shippingCostMap.get(String(o.shipping.id)) || 0) : 0;
+      // Custo de frete: cobra apenas uma vez por shipment_id (sub-pedidos compartilham o mesmo envio)
+      const shippingId = String(o.shipping?.id || '');
+      let shippingCost = 0;
+      if (shippingId) {
+        const available = shippingCostMap.get(shippingId) || 0;
+        if (available > 0 && !chargedShipments.has(shippingId)) {
+          shippingCost = available;
+          chargedShipments.add(shippingId);
+        }
+      }
 
       let net: number;
       let formula: string;
