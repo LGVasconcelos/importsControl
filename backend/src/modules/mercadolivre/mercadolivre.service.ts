@@ -572,8 +572,9 @@ export class MercadoLivreService {
               headers: { Authorization: `Bearer ${accessToken}` },
             });
             const data = await res.json() as any;
-            // base_cost = custo real do frete cobrado do vendedor (ex: frete grátis)
-            const cost = Number(data.base_cost ?? data.sender_cost ?? 0);
+            // sender_cost = o que o vendedor paga de fato (com desconto ML)
+            // base_cost  = preço cheio do frete (sem desconto) — não usar
+            const cost = Number(data.sender_cost ?? data.base_cost ?? 0);
             shippingCostMap.set(String(o.shipping.id), cost);
           } catch { /* ignora falhas individuais */ }
         }),
