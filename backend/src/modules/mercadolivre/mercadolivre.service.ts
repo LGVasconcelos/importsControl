@@ -604,11 +604,28 @@ export class MercadoLivreService {
       );
       // Custo de frete cobrado do vendedor (buscado via /shipments)
       const shippingCost = o.shipping?.id ? (shippingCostMap.get(String(o.shipping.id)) || 0) : 0;
-      // net_received_amount já desconta comissão + frete — usar diretamente quando disponível
-      // Fallback manual: total - comissão - frete
-      const net = netFromPayments > 0
-        ? netFromPayments
-        : Math.max(0, total - saleFees - shippingCost);
+
+      let net: number;
+      let formula: string;
+
+      if (netFromPayments > 0) {
+        // net_received_amount: já desconta comissão + frete (quando disponível)
+        net = netFromPayments;
+        formula = `net_received(${netFromPayments})`;
+      } else {
+        // total_paid - marketplace_fee: desconta tudo (comissão + frete) sem precisar calcular na mão
+        const totalPaid = (o.payments || []).reduce((s: number, p: any) => s + Number(p.total_paid_amount || 0), 0);
+        const marketplaceFee = (o.payments || []).reduce((s: number, p: any) => s + Number(p.marketplace_fee || 0), 0);
+        if (totalPaid > 0 && marketplaceFee > 0) {
+          net = Math.max(0, totalPaid - marketplaceFee);
+          formula = `total_paid(${totalPaid}) - marketplace_fee(${marketplaceFee}) = ${net}`;
+        } else {
+          // último fallback: cálculo manual
+          net = Math.max(0, total - saleFees - shippingCost);
+          formula = `total(${total}) - comissao(${saleFees}) - frete(${shippingCost}) = ${net}`;
+        }
+      }
+
       const fee = total - net;
 
       totalRevenue += total;
@@ -626,9 +643,7 @@ export class MercadoLivreService {
           sale_fees: saleFees,
           shipping_base_cost: shippingCost,
           shipment_raw: o.shipping?.id ? shippingCostMap.get(`${o.shipping.id}__debug`) || '{}' : '{}',
-          formula: netFromPayments > 0
-            ? `net_received(${netFromPayments}) [frete já incluso]`
-            : `total(${total}) - comissao(${saleFees}) - frete(${shippingCost}) = ${total - saleFees - shippingCost}`,
+          formula,
         },
         items: (o.order_items || []).map((i: any) => ({
           title: i.item?.title || '',
