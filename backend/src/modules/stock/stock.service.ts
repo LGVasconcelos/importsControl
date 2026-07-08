@@ -71,4 +71,9 @@ export class StockService {
   findByProduct(productId: number): Promise<StockMovement[]> {
     return this.movementRepo.find({ where: { productId }, order: { createdAt: 'DESC' } });
   }
+
+  async existsByOrderReference(orderReference: string): Promise<boolean> {
+    const count = await this.movementRepo.count({ where: { orderReference } });
+    return count > 0;
+  }
 }

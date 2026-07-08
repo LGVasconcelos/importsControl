@@ -120,6 +120,20 @@ export default function MercadoLivrePage() {
     }
   };
 
+  const handleProcessPendingSales = async () => {
+    setSyncing(true);
+    try {
+      const r = await mercadolivreService.processPendingSales();
+      if (r.processed > 0) toast.success(`${r.processed} venda(s) processada(s) — estoque atualizado!`);
+      else toast.success(`Nenhuma venda pendente encontrada (${r.skipped} já processadas)`);
+      if (r.errors.length) toast.error(r.errors.join('\n'), { duration: 8000 });
+    } catch (e: any) {
+      toast.error(`Erro: ${e?.response?.data?.message || e?.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleSyncOne = async (productId: number, sku: string) => {
     try {
       const r = await mercadolivreService.syncProductWithAutoPause(productId);
@@ -212,6 +226,9 @@ export default function MercadoLivrePage() {
             </button>
             <button onClick={handleSyncAll} disabled={syncing} style={styles.btnSync}>
               {syncing ? 'Sincronizando...' : 'Sincronizar Todo Estoque'}
+            </button>
+            <button onClick={handleProcessPendingSales} disabled={syncing} style={{ ...styles.btnSync, background: '#7c3aed' }}>
+              {syncing ? 'Processando...' : '↓ Processar Vendas Pendentes'}
             </button>
           </div>
         )}

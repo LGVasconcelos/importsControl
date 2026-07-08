@@ -377,9 +377,10 @@ export class MercadoLivreService {
   }
 
   async handleWebhook(body: any): Promise<void> {
-    if (body.topic !== 'orders_v2') return;
-    const orderId = String(body.resource || '').split('/').pop();
-    if (!orderId) return;
+    // Aceita tanto 'orders_v2' quanto 'orders' (ML usa ambos dependendo da configuração)
+    if (!['orders_v2', 'orders'].includes(body.topic)) return;
+    const orderId = String(body.resource || body.user_id || '').split('/').pop();
+    if (!orderId || orderId === '0') return;
 
     const accessToken = await this.getValidToken().catch(() => null);
     if (!accessToken) return;
@@ -390,12 +391,17 @@ export class MercadoLivreService {
     const mlOrder = await orderRes.json() as any;
     if (mlOrder.status !== 'paid') return;
 
+    await this.processOrder(mlOrder, accessToken);
+  }
+
+  /** Processa um pedido pago: baixa estoque com idempotência */
+  private async processOrder(mlOrder: any, accessToken: string): Promise<boolean> {
+    const orderId = String(mlOrder.id);
     const mlOrderRef = `ML-${orderId}`;
 
-    // Idempotência: se já processamos este pedido, ignora
-    const existing = await this.stockService.findAll();
-    const alreadyProcessed = existing.some(m => m.orderReference === mlOrderRef);
-    if (alreadyProcessed) return;
+    // Idempotência rápida: busca direto pelo orderReference
+    const alreadyProcessed = await this.stockService.existsByOrderReference(mlOrderRef);
+    if (alreadyProcessed) return false;
 
     const allProducts = await this.productRepo.find({ where: { active: true } });
 
@@ -431,6 +437,34 @@ export class MercadoLivreService {
         await this.pauseProductListings(product, accessToken).catch(() => {});
       }
     }
+    return true;
+  }
+
+  /** Busca pedidos pagos recentes e processa os que ainda não baixaram estoque */
+  async processPendingSales(): Promise<{ processed: number; skipped: number; errors: string[] }> {
+    const accessToken = await this.getValidToken();
+    const tokenRecord = await this.tokenRepo.findOne({ where: {} });
+    const userId = tokenRecord?.mlUserId;
+    if (!userId) throw new Error('Não conectado ao Mercado Livre');
+
+    // Busca últimos 50 pedidos pagos
+    const res = await fetch(`${ML_API}/orders/search?seller=${userId}&order.status=paid&limit=50`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await res.json() as any;
+    const orders: any[] = data.results || [];
+
+    let processed = 0, skipped = 0;
+    const errors: string[] = [];
+    for (const order of orders) {
+      try {
+        const didProcess = await this.processOrder(order, accessToken);
+        if (didProcess) processed++; else skipped++;
+      } catch (e: any) {
+        errors.push(`#${order.id}: ${e?.message}`);
+      }
+    }
+    return { processed, skipped, errors };
   }
 
   /** Pausa todos os anúncios ML de um produto */
