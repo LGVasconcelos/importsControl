@@ -43,7 +43,7 @@ export class StockMovement {
   user: User;
 
   @Column({ nullable: true })
-  userId: number;
+  userId: number | null;
 
   @CreateDateColumn()
   createdAt: Date;
