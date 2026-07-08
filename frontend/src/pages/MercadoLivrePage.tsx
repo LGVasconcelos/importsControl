@@ -32,7 +32,11 @@ export default function MercadoLivrePage() {
   const [varItemInput, setVarItemInput] = useState('');
   const [varLoading, setVarLoading] = useState(false);
   const [variations, setVariations] = useState<MlVariation[]>([]);
+  const [varError, setVarError] = useState('');
   const [pendingFrom, setPendingFrom] = useState('');
+
+  // Busca de produtos
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (searchParams.get('connected') === 'true') toast.success('Mercado Livre conectado!');
