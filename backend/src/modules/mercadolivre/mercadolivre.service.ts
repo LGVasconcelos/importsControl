@@ -616,8 +616,8 @@ export class MercadoLivreService {
       const netFromPayments = (detail.payments || []).reduce(
         (s: number, p: any) => s + Number(p.net_received_amount || 0), 0,
       );
-      // Fallback: total - comissão por item
-      const saleFees = (o.order_items || []).reduce(
+      // Comissão: usa detail.order_items (dados completos, todos os itens)
+      const saleFees = (detail.order_items || o.order_items || []).reduce(
         (s: number, i: any) => s + Number(i.sale_fee || 0), 0,
       );
       // Custo de frete cobrado do vendedor (buscado via /shipments)
@@ -627,18 +627,16 @@ export class MercadoLivreService {
       let formula: string;
 
       if (netFromPayments > 0) {
-        // net_received_amount: já desconta comissão + frete (quando disponível)
         net = netFromPayments;
         formula = `net_received(${netFromPayments})`;
       } else {
-        // total_paid - marketplace_fee: desconta tudo (comissão + frete) sem precisar calcular na mão
         const totalPaid = (detail.payments || []).reduce((s: number, p: any) => s + Number(p.total_paid_amount || 0), 0);
         const marketplaceFee = (detail.payments || []).reduce((s: number, p: any) => s + Number(p.marketplace_fee || 0), 0);
-        const paymentsRaw = JSON.stringify((detail.payments || []).map((p: any) => ({
-          net_received: p.net_received_amount,
-          total_paid: p.total_paid_amount,
-          marketplace_fee: p.marketplace_fee,
-        })));
+        // log todos os campos do payment para debug
+        const paymentsRaw = JSON.stringify((detail.payments || []).map((p: any) => {
+          const { payer_id, payer, ...rest } = p;
+          return rest;
+        }));
         if (totalPaid > 0 && marketplaceFee > 0) {
           net = Math.max(0, totalPaid - marketplaceFee);
           formula = `total_paid(${totalPaid}) - marketplace_fee(${marketplaceFee}) = ${net} | payments:${paymentsRaw}`;
