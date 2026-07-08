@@ -561,6 +561,22 @@ export class MercadoLivreService {
       offset += limit;
     }
 
+    // Busca cada pedido individualmente para obter payments completos (marketplace_fee)
+    const orderDetailMap = new Map<string, any>();
+    await Promise.all(
+      allOrders.map(async (o: any) => {
+        try {
+          const res = await fetch(`${ML_API}/orders/${o.id}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (res.ok) {
+            const detail = await res.json() as any;
+            orderDetailMap.set(String(o.id), detail);
+          }
+        } catch { /* ignora */ }
+      }),
+    );
+
     // Busca custo de frete do vendedor via /shipments/{id} em paralelo
     const shippingCostMap = new Map<string, number>();
     await Promise.all(
@@ -592,10 +608,12 @@ export class MercadoLivreService {
     let totalFees = 0;
     let totalNet = 0;
     const orders = allOrders.map((o: any) => {
+      // Usa dados detalhados do pedido (payments completos) quando disponível
+      const detail = orderDetailMap.get(String(o.id)) || o;
       const total = Number(o.total_amount || 0);
 
       // Valor líquido: soma de net_received_amount dos pagamentos (desconta comissão ML)
-      const netFromPayments = (o.payments || []).reduce(
+      const netFromPayments = (detail.payments || []).reduce(
         (s: number, p: any) => s + Number(p.net_received_amount || 0), 0,
       );
       // Fallback: total - comissão por item
@@ -614,15 +632,20 @@ export class MercadoLivreService {
         formula = `net_received(${netFromPayments})`;
       } else {
         // total_paid - marketplace_fee: desconta tudo (comissão + frete) sem precisar calcular na mão
-        const totalPaid = (o.payments || []).reduce((s: number, p: any) => s + Number(p.total_paid_amount || 0), 0);
-        const marketplaceFee = (o.payments || []).reduce((s: number, p: any) => s + Number(p.marketplace_fee || 0), 0);
+        const totalPaid = (detail.payments || []).reduce((s: number, p: any) => s + Number(p.total_paid_amount || 0), 0);
+        const marketplaceFee = (detail.payments || []).reduce((s: number, p: any) => s + Number(p.marketplace_fee || 0), 0);
+        const paymentsRaw = JSON.stringify((detail.payments || []).map((p: any) => ({
+          net_received: p.net_received_amount,
+          total_paid: p.total_paid_amount,
+          marketplace_fee: p.marketplace_fee,
+        })));
         if (totalPaid > 0 && marketplaceFee > 0) {
           net = Math.max(0, totalPaid - marketplaceFee);
-          formula = `total_paid(${totalPaid}) - marketplace_fee(${marketplaceFee}) = ${net}`;
+          formula = `total_paid(${totalPaid}) - marketplace_fee(${marketplaceFee}) = ${net} | payments:${paymentsRaw}`;
         } else {
           // último fallback: cálculo manual
           net = Math.max(0, total - saleFees - shippingCost);
-          formula = `total(${total}) - comissao(${saleFees}) - frete(${shippingCost}) = ${net}`;
+          formula = `FALLBACK total(${total}) - comissao(${saleFees}) - frete(${shippingCost}) = ${net} | payments:${paymentsRaw}`;
         }
       }
 
