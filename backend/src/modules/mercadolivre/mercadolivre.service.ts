@@ -637,13 +637,21 @@ export class MercadoLivreService {
           const { payer_id, payer, ...rest } = p;
           return rest;
         }));
+        const orderDebug = JSON.stringify({
+          fee_details: detail.fee_details,
+          fees: detail.fees,
+          buyer_costs: detail.buyer_costs,
+          seller_costs: detail.seller_costs,
+          items_count: (detail.order_items || []).length,
+          items_sale_fees: (detail.order_items || []).map((i: any) => ({ title: i.item?.title?.slice(0,20), sale_fee: i.sale_fee })),
+        });
         if (totalPaid > 0 && marketplaceFee > 0) {
           net = Math.max(0, totalPaid - marketplaceFee);
-          formula = `total_paid(${totalPaid}) - marketplace_fee(${marketplaceFee}) = ${net} | payments:${paymentsRaw}`;
+          formula = `total_paid(${totalPaid}) - marketplace_fee(${marketplaceFee}) = ${net} | order:${orderDebug}`;
         } else {
           // último fallback: cálculo manual
           net = Math.max(0, total - saleFees - shippingCost);
-          formula = `FALLBACK total(${total}) - comissao(${saleFees}) - frete(${shippingCost}) = ${net} | payments:${paymentsRaw}`;
+          formula = `FALLBACK total(${total}) - comissao(${saleFees}) - frete(${shippingCost}) = ${net} | order:${orderDebug}`;
         }
       }
 
