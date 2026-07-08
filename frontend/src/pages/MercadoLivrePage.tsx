@@ -32,10 +32,7 @@ export default function MercadoLivrePage() {
   const [varItemInput, setVarItemInput] = useState('');
   const [varLoading, setVarLoading] = useState(false);
   const [variations, setVariations] = useState<MlVariation[]>([]);
-  const [varError, setVarError] = useState('');
-
-  // Busca de produtos
-  const [search, setSearch] = useState('');
+  const [pendingFrom, setPendingFrom] = useState('');
 
   useEffect(() => {
     if (searchParams.get('connected') === 'true') toast.success('Mercado Livre conectado!');
@@ -123,7 +120,7 @@ export default function MercadoLivrePage() {
   const handleProcessPendingSales = async () => {
     setSyncing(true);
     try {
-      const r = await mercadolivreService.processPendingSales();
+      const r = await mercadolivreService.processPendingSales(pendingFrom || undefined);
       if (r.processed > 0) toast.success(`${r.processed} venda(s) processada(s) — estoque atualizado!`);
       else toast.success(`Nenhuma venda pendente encontrada (${r.skipped} já processadas)`);
       if (r.errors.length) toast.error(r.errors.join('\n'), { duration: 8000 });
@@ -227,9 +224,18 @@ export default function MercadoLivrePage() {
             <button onClick={handleSyncAll} disabled={syncing} style={styles.btnSync}>
               {syncing ? 'Sincronizando...' : 'Sincronizar Todo Estoque'}
             </button>
-            <button onClick={handleProcessPendingSales} disabled={syncing} style={{ ...styles.btnSync, background: '#7c3aed' }}>
-              {syncing ? 'Processando...' : '↓ Processar Vendas Pendentes'}
-            </button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="date"
+                value={pendingFrom}
+                onChange={e => setPendingFrom(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 7, border: '1.5px solid var(--border)', fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-body)' }}
+                title="Processar vendas a partir desta data (deixe vazio para últimas 50)"
+              />
+              <button onClick={handleProcessPendingSales} disabled={syncing} style={{ ...styles.btnSync, background: '#7c3aed' }}>
+                {syncing ? 'Processando...' : '↓ Processar Pendentes'}
+              </button>
+            </div>
           </div>
         )}
       </div>

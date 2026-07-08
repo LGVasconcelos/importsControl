@@ -95,9 +95,9 @@ export class MercadoLivreController {
 
   @UseGuards(JwtAuthGuard)
   @Post('process-pending-sales')
-  async processPendingSales() {
+  async processPendingSales(@Query('from') from?: string) {
     try {
-      return await this.mlService.processPendingSales();
+      return await this.mlService.processPendingSales(from);
     } catch (e: any) {
       throw new HttpException(
         { message: e?.message || 'Erro ao processar vendas pendentes' },

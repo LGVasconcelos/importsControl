@@ -46,7 +46,7 @@ export const mercadolivreService = {
   getVariations: (itemId: string) => api.get<MlVariation[]>(`/mercadolivre/items/${itemId}/variations`).then(r => r.data),
   getListingStatus: (productId: number) => api.get<MlListingStatus[]>(`/mercadolivre/listing-status/${productId}`).then(r => r.data),
   getDivergences: () => api.get<MlDivergence[]>('/mercadolivre/divergences').then(r => r.data),
-  processPendingSales: () => api.post<{ processed: number; skipped: number; errors: string[] }>('/mercadolivre/process-pending-sales').then(r => r.data),
+  processPendingSales: (from?: string) => api.post<{ processed: number; skipped: number; errors: string[] }>('/mercadolivre/process-pending-sales', null, { params: { from } }).then(r => r.data),
   getSalesSummary: (from?: string, to?: string) =>
     api.get<MlSalesSummary>('/mercadolivre/sales-summary', { params: { from, to } }).then(r => r.data),
 };

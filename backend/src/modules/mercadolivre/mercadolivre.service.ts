@@ -441,17 +441,21 @@ export class MercadoLivreService {
   }
 
   /** Busca pedidos pagos recentes e processa os que ainda não baixaram estoque */
-  async processPendingSales(): Promise<{ processed: number; skipped: number; errors: string[] }> {
+  async processPendingSales(dateFrom?: string): Promise<{ processed: number; skipped: number; errors: string[] }> {
     const accessToken = await this.getValidToken();
     const tokenRecord = await this.tokenRepo.findOne({ where: {} });
     const userId = tokenRecord?.mlUserId;
     if (!userId) throw new Error('Não conectado ao Mercado Livre');
 
-    // Busca últimos 50 pedidos pagos
-    const res = await fetch(`${ML_API}/orders/search?seller=${userId}&order.status=paid&limit=50`, {
+    const params: Record<string, string> = { 'order.status': 'paid', limit: '50' };
+    if (dateFrom) params['order.date_created.from'] = `${dateFrom}T00:00:00.000-03:00`;
+
+    const qs = new URLSearchParams(params);
+    const res = await fetch(`${ML_API}/orders/search?seller=${userId}&${qs}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const data = await res.json() as any;
+    if (!res.ok) throw new Error(data?.message || `Erro ML ${res.status}`);
     const orders: any[] = data.results || [];
 
     let processed = 0, skipped = 0;
