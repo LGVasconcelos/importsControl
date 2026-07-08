@@ -648,32 +648,16 @@ export class MercadoLivreService {
       }
 
       let net: number;
-      let formula: string;
 
       if (netFromPayments > 0) {
         net = netFromPayments;
-        formula = `net_received(${netFromPayments})`;
       } else {
         const totalPaid = (detail.payments || []).reduce((s: number, p: any) => s + Number(p.total_paid_amount || 0), 0);
         const marketplaceFee = (detail.payments || []).reduce((s: number, p: any) => s + Number(p.marketplace_fee || 0), 0);
-        // log todos os campos do payment para debug
-        const paymentsRaw = JSON.stringify((detail.payments || []).map((p: any) => {
-          const { payer_id, payer, ...rest } = p;
-          return rest;
-        }));
-        const orderDebug = JSON.stringify({
-          items_count: mergedItems.length,
-          o_items: (o.order_items || []).length,
-          detail_items: (detail.order_items || []).length,
-          items_sale_fees: mergedItems.map((i: any) => ({ title: i.item?.title?.slice(0,20), sale_fee: i.sale_fee })),
-        });
         if (totalPaid > 0 && marketplaceFee > 0) {
           net = Math.max(0, totalPaid - marketplaceFee);
-          formula = `total_paid(${totalPaid}) - marketplace_fee(${marketplaceFee}) = ${net} | order:${orderDebug}`;
         } else {
-          // último fallback: cálculo manual
           net = Math.max(0, total - saleFees - shippingCost);
-          formula = `FALLBACK total(${total}) - comissao(${saleFees}) - frete(${shippingCost}) = ${net} | order:${orderDebug}`;
         }
       }
 
@@ -689,13 +673,6 @@ export class MercadoLivreService {
         total,
         fee,
         net,
-        debug: {
-          net_received_amount: netFromPayments,
-          sale_fees: saleFees,
-          shipping_base_cost: shippingCost,
-          shipment_raw: o.shipping?.id ? shippingCostMap.get(`${o.shipping.id}__debug`) || '{}' : '{}',
-          formula,
-        },
         items: (o.order_items || []).map((i: any) => ({
           title: i.item?.title || '',
           quantity: Number(i.quantity),

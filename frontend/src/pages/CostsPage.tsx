@@ -172,7 +172,7 @@ export default function CostsPage() {
                     <table style={styles.table}>
                       <thead>
                         <tr style={styles.thead}>
-                          {['Pedido ML', 'Data', 'Itens', 'Bruto', 'Taxa ML', 'Líquido', 'Cálculo'].map(h => <th key={h} style={styles.th}>{h}</th>)}
+                          {['Pedido ML', 'Data', 'Itens', 'Bruto', 'Taxa ML', 'Líquido'].map(h => <th key={h} style={styles.th}>{h}</th>)}
                         </tr>
                       </thead>
                       <tbody>
@@ -184,7 +184,6 @@ export default function CostsPage() {
                             <td style={styles.td}>R$ {o.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                             <td style={{ ...styles.td, fontWeight: 700, color: '#dc2626', fontSize: 12 }}>−R$ {o.fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                             <td style={{ ...styles.td, fontWeight: 700, color: '#16a34a' }}>R$ {o.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                            <td style={{ ...styles.td, fontSize: 10, color: 'var(--text-secondary)', maxWidth: 280, wordBreak: 'break-all' }}>{o.debug.formula}<br/><em>{o.debug.shipment_raw}</em></td>
                           </tr>
                         ))}
                       </tbody>
