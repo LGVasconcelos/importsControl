@@ -571,11 +571,14 @@ export class MercadoLivreService {
       const netFromPayments = (o.payments || []).reduce(
         (s: number, p: any) => s + Number(p.net_received_amount || 0), 0,
       );
-      // Fallback: total - soma das taxas de comissão por item (sale_fee)
+      // Fallback: total - comissão por item - custo de frete do vendedor (frete grátis/frete ML)
       const saleFees = (o.order_items || []).reduce(
         (s: number, i: any) => s + Number(i.sale_fee || 0), 0,
       );
-      const net = netFromPayments > 0 ? netFromPayments : (total - saleFees);
+      const senderShippingCost = Number(o.shipping?.sender_cost || 0);
+      const net = netFromPayments > 0
+        ? netFromPayments  // já inclui todas as deduções (comissão + frete)
+        : Math.max(0, total - saleFees - senderShippingCost);
       const fee = total - net;
 
       totalRevenue += total;
