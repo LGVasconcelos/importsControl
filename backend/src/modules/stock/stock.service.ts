@@ -64,7 +64,7 @@ export class StockService {
       orderReference: dto.orderReference,
       stockBefore,
       stockAfter,
-      userId: 0,
+      userId: null,
     }));
   }
 
