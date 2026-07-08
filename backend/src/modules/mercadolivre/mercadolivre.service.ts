@@ -612,6 +612,14 @@ export class MercadoLivreService {
         total,
         fee,
         net,
+        debug: {
+          net_received_amount: netFromPayments,
+          sale_fees: saleFees,
+          shipping_base_cost: shippingCost,
+          formula: netFromPayments > 0
+            ? `net_received(${netFromPayments}) [frete já incluso]`
+            : `total(${total}) - comissao(${saleFees}) - frete(${shippingCost}) = ${total - saleFees - shippingCost}`,
+        },
         items: (o.order_items || []).map((i: any) => ({
           title: i.item?.title || '',
           quantity: Number(i.quantity),
