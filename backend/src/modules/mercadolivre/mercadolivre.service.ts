@@ -590,10 +590,15 @@ export class MercadoLivreService {
             const data = await res.json() as any;
             // sender_cost = o que o vendedor paga de fato (com desconto ML)
             // base_cost  = preço cheio do frete (sem desconto) — não usar
-            const cost = Number(data.sender_cost ?? data.base_cost ?? 0);
+            // shipping_option.list_cost = custo real do vendedor (com desconto ML)
+            // base_cost = preço cheio sem desconto — NÃO usar
+            const cost = Number(data.shipping_option?.list_cost ?? data.sender_cost ?? data.base_cost ?? 0);
             shippingCostMap.set(String(o.shipping.id), cost);
-            // dump completo do shipment para debug
-            shippingCostMap.set(`${o.shipping.id}__debug`, JSON.stringify(data) as any);
+            shippingCostMap.set(`${o.shipping.id}__debug`, JSON.stringify({
+              list_cost: data.shipping_option?.list_cost,
+              base_cost: data.base_cost,
+              used: cost,
+            }) as any);
           } catch { /* ignora falhas individuais */ }
         }),
     );
