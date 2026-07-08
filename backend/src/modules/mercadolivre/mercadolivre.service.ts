@@ -595,8 +595,11 @@ export class MercadoLivreService {
       );
       // Custo de frete cobrado do vendedor (buscado via /shipments)
       const shippingCost = o.shipping?.id ? (shippingCostMap.get(String(o.shipping.id)) || 0) : 0;
-      const baseNet = netFromPayments > 0 ? netFromPayments : (total - saleFees);
-      const net = Math.max(0, baseNet - shippingCost);
+      // net_received_amount já desconta comissão + frete — usar diretamente quando disponível
+      // Fallback manual: total - comissão - frete
+      const net = netFromPayments > 0
+        ? netFromPayments
+        : Math.max(0, total - saleFees - shippingCost);
       const fee = total - net;
 
       totalRevenue += total;
