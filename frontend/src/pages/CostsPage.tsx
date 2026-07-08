@@ -168,7 +168,7 @@ export default function CostsPage() {
               {salesSummary.orders.length > 0 && (
                 <div style={{ marginTop: 24 }}>
                   <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Pedidos Mercado Livre</h3>
-                  <div style={styles.tableWrap}>
+                  <div style={{ ...styles.tableWrap, maxHeight: 'none', overflowY: 'visible' }}>
                     <table style={styles.table}>
                       <thead>
                         <tr style={styles.thead}>
@@ -260,7 +260,7 @@ const styles: Record<string, React.CSSProperties> = {
   input: { padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-body)' },
   modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 },
   btnCancel: { padding: '9px 18px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
-  balanceWrap: { display: 'flex', flexDirection: 'column', gap: 16 },
+  balanceWrap: { display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' },
   balanceFilters: { display: 'flex', gap: 14, alignItems: 'flex-end', background: 'var(--bg-card)', padding: '16px 20px', borderRadius: 12, boxShadow: 'var(--shadow)', flexWrap: 'wrap' },
   balanceCards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 },
   card: { background: 'var(--bg-card)', borderRadius: 12, padding: '20px 24px', boxShadow: 'var(--shadow)' },
