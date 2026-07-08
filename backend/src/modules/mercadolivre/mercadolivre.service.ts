@@ -561,6 +561,24 @@ export class MercadoLivreService {
       offset += limit;
     }
 
+    // Busca custo de frete do vendedor via /shipments/{id} em paralelo
+    const shippingCostMap = new Map<string, number>();
+    await Promise.all(
+      allOrders
+        .filter((o: any) => o.shipping?.id)
+        .map(async (o: any) => {
+          try {
+            const res = await fetch(`${ML_API}/shipments/${o.shipping.id}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            const data = await res.json() as any;
+            // base_cost = custo real do frete cobrado do vendedor (ex: frete grátis)
+            const cost = Number(data.base_cost ?? data.sender_cost ?? 0);
+            shippingCostMap.set(String(o.shipping.id), cost);
+          } catch { /* ignora falhas individuais */ }
+        }),
+    );
+
     let totalRevenue = 0;
     let totalFees = 0;
     let totalNet = 0;
@@ -575,10 +593,10 @@ export class MercadoLivreService {
       const saleFees = (o.order_items || []).reduce(
         (s: number, i: any) => s + Number(i.sale_fee || 0), 0,
       );
-      // Custo de frete que o vendedor arca — sempre subtraído separadamente
-      const senderShippingCost = Number(o.shipping?.sender_cost || 0);
+      // Custo de frete cobrado do vendedor (buscado via /shipments)
+      const shippingCost = o.shipping?.id ? (shippingCostMap.get(String(o.shipping.id)) || 0) : 0;
       const baseNet = netFromPayments > 0 ? netFromPayments : (total - saleFees);
-      const net = Math.max(0, baseNet - senderShippingCost);
+      const net = Math.max(0, baseNet - shippingCost);
       const fee = total - net;
 
       totalRevenue += total;
