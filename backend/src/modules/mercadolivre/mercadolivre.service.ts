@@ -592,14 +592,8 @@ export class MercadoLivreService {
             // base_cost  = preço cheio do frete (sem desconto) — não usar
             const cost = Number(data.sender_cost ?? data.base_cost ?? 0);
             shippingCostMap.set(String(o.shipping.id), cost);
-            // guarda campos brutos para debug
-            shippingCostMap.set(`${o.shipping.id}__debug`, JSON.stringify({
-              sender_cost: data.sender_cost,
-              base_cost: data.base_cost,
-              cost: data.cost,
-              receiver_shipping_cost: data.receiver_shipping_cost,
-              status: data.status,
-            }) as any);
+            // dump completo do shipment para debug
+            shippingCostMap.set(`${o.shipping.id}__debug`, JSON.stringify(data) as any);
           } catch { /* ignora falhas individuais */ }
         }),
     );
