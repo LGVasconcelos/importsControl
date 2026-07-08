@@ -76,4 +76,29 @@ export class StockService {
     const count = await this.movementRepo.count({ where: { orderReference } });
     return count > 0;
   }
+
+  /** Reverte todos os movimentos ML (orderReference = 'ML-*'), restaurando o estoque */
+  async revertMlMovements(): Promise<{ reverted: number; details: string[] }> {
+    const mlMovements = await this.movementRepo
+      .createQueryBuilder('m')
+      .where("m.orderReference LIKE 'ML-%'")
+      .orderBy('m.createdAt', 'DESC')
+      .getMany();
+
+    if (!mlMovements.length) return { reverted: 0, details: ['Nenhum movimento ML encontrado'] };
+
+    const details: string[] = [];
+    for (const mv of mlMovements) {
+      // Reverte: saídas viram entradas (devolve estoque)
+      const product = await this.productRepo.findOne({ where: { id: mv.productId } });
+      if (!product) continue;
+      if (mv.type === MovementType.EXIT) {
+        await this.productRepo.update(mv.productId, { currentStock: product.currentStock + mv.quantity });
+        details.push(`+${mv.quantity} em produto #${mv.productId} (${mv.orderReference})`);
+      }
+      await this.movementRepo.delete(mv.id);
+    }
+
+    return { reverted: mlMovements.length, details };
+  }
 }

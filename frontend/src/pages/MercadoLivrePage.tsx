@@ -135,6 +135,19 @@ export default function MercadoLivrePage() {
     }
   };
 
+  const handleRevertMlMovements = async () => {
+    if (!confirm('Isso vai DESFAZER todos os movimentos de estoque gerados pelo ML e restaurar as quantidades. Continuar?')) return;
+    setSyncing(true);
+    try {
+      const r = await mercadolivreService.revertMlMovements();
+      toast.success(`${r.reverted} movimento(s) revertido(s). Estoque restaurado!`, { duration: 6000 });
+    } catch (e: any) {
+      toast.error(`Erro: ${e?.response?.data?.message || e?.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleSyncOne = async (productId: number, sku: string) => {
     try {
       const r = await mercadolivreService.syncProductWithAutoPause(productId);
@@ -240,6 +253,9 @@ export default function MercadoLivrePage() {
                 {syncing ? 'Processando...' : '↓ Processar Pendentes'}
               </button>
             </div>
+            <button onClick={handleRevertMlMovements} disabled={syncing} style={{ ...styles.btnSync, background: '#dc2626' }}>
+              {syncing ? 'Revertendo...' : '↺ Reverter Movimentos ML'}
+            </button>
           </div>
         )}
       </div>

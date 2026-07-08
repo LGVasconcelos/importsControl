@@ -1,11 +1,15 @@
 import { Controller, Get, Post, Delete, Query, Param, ParseIntPipe, UseGuards, Res, Body, HttpCode, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { MercadoLivreService } from './mercadolivre.service';
+import { StockService } from '../stock/stock.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('mercadolivre')
 export class MercadoLivreController {
-  constructor(private readonly mlService: MercadoLivreService) {}
+  constructor(
+    private readonly mlService: MercadoLivreService,
+    private readonly stockService: StockService,
+  ) {}
 
   @Get('auth')
   async auth(@Res() res: Response) {
@@ -91,6 +95,19 @@ export class MercadoLivreController {
   @Get('divergences')
   getDivergences() {
     return this.mlService.checkStockDivergences();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('revert-ml-movements')
+  async revertMlMovements() {
+    try {
+      return await this.stockService.revertMlMovements();
+    } catch (e: any) {
+      throw new HttpException(
+        { message: e?.message || 'Erro ao reverter movimentos' },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @UseGuards(JwtAuthGuard)
