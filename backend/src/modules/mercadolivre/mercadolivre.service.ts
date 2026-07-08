@@ -618,10 +618,23 @@ export class MercadoLivreService {
       const netFromPayments = (detail.payments || []).reduce(
         (s: number, p: any) => s + Number(p.net_received_amount || 0), 0,
       );
-      // Comissão: usa detail.order_items (dados completos, todos os itens)
-      const saleFees = (detail.order_items || o.order_items || []).reduce(
-        (s: number, i: any) => s + Number(i.sale_fee || 0), 0,
-      );
+      // Comissão: mescla order_items de ambas as fontes (search + detail)
+      // priorizando o sale_fee maior (não-zero) de cada item
+      const itemMap = new Map<string, any>();
+      for (const item of (o.order_items || [])) {
+        const key = item.item?.id || String(Math.random());
+        itemMap.set(key, item);
+      }
+      for (const item of (detail.order_items || [])) {
+        const key = item.item?.id || String(Math.random());
+        const existing = itemMap.get(key);
+        // usa detail se o sale_fee for maior que o da busca
+        if (!existing || Number(item.sale_fee || 0) > Number(existing.sale_fee || 0)) {
+          itemMap.set(key, item);
+        }
+      }
+      const mergedItems = Array.from(itemMap.values());
+      const saleFees = mergedItems.reduce((s: number, i: any) => s + Number(i.sale_fee || 0), 0);
       // Custo de frete cobrado do vendedor (buscado via /shipments)
       const shippingCost = o.shipping?.id ? (shippingCostMap.get(String(o.shipping.id)) || 0) : 0;
 
@@ -640,12 +653,10 @@ export class MercadoLivreService {
           return rest;
         }));
         const orderDebug = JSON.stringify({
-          fee_details: detail.fee_details,
-          fees: detail.fees,
-          buyer_costs: detail.buyer_costs,
-          seller_costs: detail.seller_costs,
-          items_count: (detail.order_items || []).length,
-          items_sale_fees: (detail.order_items || []).map((i: any) => ({ title: i.item?.title?.slice(0,20), sale_fee: i.sale_fee })),
+          items_count: mergedItems.length,
+          o_items: (o.order_items || []).length,
+          detail_items: (detail.order_items || []).length,
+          items_sale_fees: mergedItems.map((i: any) => ({ title: i.item?.title?.slice(0,20), sale_fee: i.sale_fee })),
         });
         if (totalPaid > 0 && marketplaceFee > 0) {
           net = Math.max(0, totalPaid - marketplaceFee);
