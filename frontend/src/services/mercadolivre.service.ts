@@ -28,6 +28,14 @@ export interface MlDivergence {
   divergences: { entry: string; mlStock: number; localStock: number }[];
 }
 
+export interface MlSalesSummary {
+  totalRevenue: number;
+  totalOrders: number;
+  totalFees: number;
+  netRevenue: number;
+  orders: { id: string; date: string; total: number; fee: number; items: { title: string; quantity: number; unitPrice: number }[] }[];
+}
+
 export const mercadolivreService = {
   getStatus: () => api.get<MlStatus>('/mercadolivre/status').then(r => r.data),
   disconnect: () => api.delete('/mercadolivre/disconnect').then(r => r.data),
@@ -38,4 +46,6 @@ export const mercadolivreService = {
   getVariations: (itemId: string) => api.get<MlVariation[]>(`/mercadolivre/items/${itemId}/variations`).then(r => r.data),
   getListingStatus: (productId: number) => api.get<MlListingStatus[]>(`/mercadolivre/listing-status/${productId}`).then(r => r.data),
   getDivergences: () => api.get<MlDivergence[]>('/mercadolivre/divergences').then(r => r.data),
+  getSalesSummary: (from?: string, to?: string) =>
+    api.get<MlSalesSummary>('/mercadolivre/sales-summary', { params: { from, to } }).then(r => r.data),
 };

@@ -523,4 +523,60 @@ export class MercadoLivreService {
     }
     return result;
   }
+
+  /** Busca resumo de vendas pagas no Mercado Livre */
+  async getSalesSummary(dateFrom?: string, dateTo?: string): Promise<{
+    totalRevenue: number;
+    totalOrders: number;
+    totalFees: number;
+    netRevenue: number;
+    orders: { id: string; date: string; total: number; fee: number; items: { title: string; quantity: number; unitPrice: number }[] }[];
+  }> {
+    const accessToken = await this.getValidToken();
+    const tokenRecord = await this.tokenRepo.findOne({ where: {} });
+    const userId = tokenRecord?.mlUserId;
+    if (!userId) throw new Error('Não conectado ao Mercado Livre');
+
+    const limit = 50;
+    let offset = 0;
+    const allOrders: any[] = [];
+
+    const params: Record<string, string> = { 'order.status': 'paid', limit: String(limit) };
+    if (dateFrom) params['order.date_created.from'] = `${dateFrom}T00:00:00.000-03:00`;
+    if (dateTo) params['order.date_created.to'] = `${dateTo}T23:59:59.999-03:00`;
+
+    while (true) {
+      const qs = new URLSearchParams({ ...params, offset: String(offset) });
+      const res = await fetch(`${ML_API}/orders/search?seller=${userId}&${qs}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await res.json() as any;
+      const results: any[] = data.results || [];
+      allOrders.push(...results);
+      if (results.length < limit) break;
+      offset += limit;
+    }
+
+    let totalRevenue = 0;
+    let totalFees = 0;
+    const orders = allOrders.map((o: any) => {
+      const total = Number(o.total_amount || 0);
+      const fee = Number(o.taxes?.amount || 0) + Number(o.coupon?.amount || 0);
+      totalRevenue += total;
+      totalFees += fee;
+      return {
+        id: String(o.id),
+        date: o.date_created,
+        total,
+        fee,
+        items: (o.order_items || []).map((i: any) => ({
+          title: i.item?.title || '',
+          quantity: Number(i.quantity),
+          unitPrice: Number(i.unit_price || 0),
+        })),
+      };
+    });
+
+    return { totalRevenue, totalOrders: allOrders.length, totalFees, netRevenue: totalRevenue - totalFees, orders };
+  }
 }

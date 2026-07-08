@@ -92,4 +92,10 @@ export class MercadoLivreController {
   getDivergences() {
     return this.mlService.checkStockDivergences();
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('sales-summary')
+  getSalesSummary(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.mlService.getSalesSummary(from, to);
+  }
 }
