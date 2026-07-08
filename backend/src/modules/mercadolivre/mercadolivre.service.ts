@@ -551,6 +551,10 @@ export class MercadoLivreService {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const data = await res.json() as any;
+      if (!res.ok) {
+        const errMsg = data?.message || data?.error || `Erro ML ${res.status}`;
+        throw new Error(`Erro ao buscar pedidos ML: ${errMsg}`);
+      }
       const results: any[] = data.results || [];
       allOrders.push(...results);
       if (results.length < limit) break;

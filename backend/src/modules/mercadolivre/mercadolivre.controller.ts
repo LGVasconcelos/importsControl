@@ -95,7 +95,14 @@ export class MercadoLivreController {
 
   @UseGuards(JwtAuthGuard)
   @Get('sales-summary')
-  getSalesSummary(@Query('from') from?: string, @Query('to') to?: string) {
-    return this.mlService.getSalesSummary(from, to);
+  async getSalesSummary(@Query('from') from?: string, @Query('to') to?: string) {
+    try {
+      return await this.mlService.getSalesSummary(from, to);
+    } catch (e: any) {
+      throw new HttpException(
+        { message: e?.message || 'Erro ao buscar vendas no Mercado Livre' },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }
