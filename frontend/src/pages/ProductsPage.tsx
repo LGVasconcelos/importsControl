@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { productsService } from '../services/products.service';
-import type { Product } from '../services/products.service';
+import type { Product, KitItem } from '../services/products.service';
 import { stockService } from '../services/stock.service';
 import type { MovementType } from '../services/stock.service';
 import toast from 'react-hot-toast';
 
-const emptyForm: Partial<Product> = { sku: '', name: '', description: '', origin: '', supplier: '', unit: 'UN', costPrice: 0, salePrice: 0, minimumStock: 0, category: '', ncm: '' };
+const emptyForm: Partial<Product> = { sku: '', name: '', description: '', origin: '', supplier: '', unit: 'UN', costPrice: 0, salePrice: 0, minimumStock: 0, category: '', ncm: '', isKit: false };
 const emptyAdj = { type: 'ENTRY' as MovementType, quantity: 1, reason: '' };
 
 export default function ProductsPage() {
@@ -19,11 +19,61 @@ export default function ProductsPage() {
   const [adjProduct, setAdjProduct] = useState<Product | null>(null);
   const [adj, setAdj] = useState(emptyAdj);
 
+  // Kit modal state
+  const [kitModal, setKitModal] = useState(false);
+  const [kitProduct, setKitProduct] = useState<Product | null>(null);
+  const [kitItems, setKitItems] = useState<KitItem[]>([]);
+  const [kitLoading, setKitLoading] = useState(false);
+  const [newComponent, setNewComponent] = useState({ componentProductId: '', quantity: 1 });
+
   const load = () => { setLoading(true); productsService.getAll(search || undefined).then(setProducts).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, [search]);
 
   const openCreate = () => { setForm(emptyForm); setEditing(null); setModal(true); };
   const openEdit = (p: Product) => { setForm(p); setEditing(p.id); setModal(true); };
+
+  const openKitModal = async (p: Product) => {
+    setKitProduct(p);
+    setKitModal(true);
+    setNewComponent({ componentProductId: '', quantity: 1 });
+    setKitLoading(true);
+    try {
+      const items = await productsService.getKitItems(p.id);
+      setKitItems(items);
+    } catch {
+      setKitItems([]);
+    } finally {
+      setKitLoading(false);
+    }
+  };
+
+  const handleAddKitItem = async () => {
+    if (!kitProduct || !newComponent.componentProductId) { toast.error('Selecione um componente'); return; }
+    if (newComponent.quantity < 1) { toast.error('Quantidade mínima é 1'); return; }
+    try {
+      await productsService.addKitItem(kitProduct.id, Number(newComponent.componentProductId), newComponent.quantity);
+      toast.success('Componente adicionado!');
+      setNewComponent({ componentProductId: '', quantity: 1 });
+      const items = await productsService.getKitItems(kitProduct.id);
+      setKitItems(items);
+      load();
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Erro ao adicionar componente');
+    }
+  };
+
+  const handleRemoveKitItem = async (kitItemId: number) => {
+    if (!confirm('Remover este componente do kit?')) return;
+    try {
+      await productsService.removeKitItem(kitItemId);
+      toast.success('Componente removido');
+      const items = await productsService.getKitItems(kitProduct!.id);
+      setKitItems(items);
+      load();
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Erro ao remover componente');
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -133,6 +183,7 @@ export default function ProductsPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                     <span style={styles.sku}>{p.sku}</span>
                     {p.category && <span style={styles.categoryTag}>{p.category}</span>}
+                    {p.isKit && <span style={styles.kitTag}>KIT</span>}
                   </div>
                 </td>
                 <td style={styles.td} data-label="Produto">
@@ -162,7 +213,9 @@ export default function ProductsPage() {
                 <td style={styles.td} data-label="">
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button onClick={() => openEdit(p)} style={styles.btnEdit}>Editar</button>
-                    <button onClick={() => openAdj(p)} style={styles.btnStock}>Estoque</button>
+                    {p.isKit
+                      ? <button onClick={() => openKitModal(p)} style={styles.btnKit}>Componentes</button>
+                      : <button onClick={() => openAdj(p)} style={styles.btnStock}>Estoque</button>}
                     <button onClick={() => handleDelete(p.id)} style={styles.btnDel}>Desativar</button>
                   </div>
                 </td>
@@ -199,6 +252,15 @@ export default function ProductsPage() {
                 </div>
               ))}
             </div>
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input type="checkbox" id="isKit" checked={!!form.isKit} onChange={e => setForm(f => ({ ...f, isKit: e.target.checked }))} style={{ width: 16, height: 16, accentColor: '#7c3aed', cursor: 'pointer' }} />
+              <label htmlFor="isKit" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                Este produto é um <span style={{ color: '#7c3aed' }}>Kit</span>
+                <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 6 }}>
+                  (ao vender, baixa o estoque dos componentes)
+                </span>
+              </label>
+            </div>
             <div style={styles.modalFooter}>
               <button onClick={() => setModal(false)} style={styles.btnCancel}>Cancelar</button>
               <button onClick={handleSave} style={styles.btnPrimary}>Salvar</button>
@@ -206,8 +268,7 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
-      {adjModal && adjProduct && (
-        <div style={styles.overlay} className="modal-overlay">
+      {adjModal && adjProduct && (        <div style={styles.overlay} className="modal-overlay">
           <div style={{ ...styles.modal, maxWidth: 420 }} className="modal-box">
             <h2 style={styles.modalTitle}>Ajustar Estoque — {adjProduct.name}</h2>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
@@ -238,6 +299,80 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+
+      {kitModal && kitProduct && (
+        <div style={styles.overlay} className="modal-overlay">
+          <div style={{ ...styles.modal, maxWidth: 560 }} className="modal-box">
+            <h2 style={styles.modalTitle}>Componentes do Kit — {kitProduct.name}</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              Estoque calculado automaticamente com base nos componentes.
+            </p>
+
+            {kitLoading ? (
+              <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '20px 0' }}>Carregando...</p>
+            ) : (
+              <>
+                {kitItems.length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 }}>Nenhum componente cadastrado ainda.</p>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg-thead)' }}>
+                        {['SKU', 'Componente', 'Qtd / kit', 'Estoque', ''].map(h => (
+                          <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {kitItems.map(ki => (
+                        <tr key={ki.id} style={{ borderBottom: '1px solid var(--border-row)' }}>
+                          <td style={{ padding: '8px 10px', fontSize: 12 }}>
+                            <span style={styles.sku}>{ki.component.sku}</span>
+                          </td>
+                          <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{ki.component.name}</td>
+                          <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'center' }}>
+                            <span style={{ background: '#f3e8ff', color: '#7c3aed', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>×{ki.quantity}</span>
+                          </td>
+                          <td style={{ padding: '8px 10px', fontSize: 12, color: ki.component.currentStock <= 0 ? '#dc2626' : '#16a34a' }}>
+                            {ki.component.currentStock} {ki.component.unit}
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <button onClick={() => handleRemoveKitItem(ki.id)} style={styles.btnDel}>Remover</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <div style={{ background: 'var(--bg-thead)', borderRadius: 10, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase' }}>Adicionar componente</p>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 160 }}>
+                      <label style={styles.label}>Produto</label>
+                      <select value={newComponent.componentProductId} onChange={e => setNewComponent(c => ({ ...c, componentProductId: e.target.value }))} style={styles.input}>
+                        <option value="">Selecionar...</option>
+                        {products.filter(p => !p.isKit && p.active && p.id !== kitProduct.id && !kitItems.some(ki => ki.componentProductId === p.id)).map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ width: 90 }}>
+                      <label style={styles.label}>Quantidade</label>
+                      <input type="number" min={1} value={newComponent.quantity} onChange={e => setNewComponent(c => ({ ...c, quantity: Number(e.target.value) }))} style={styles.input} />
+                    </div>
+                    <button onClick={handleAddKitItem} style={{ ...styles.btnPrimary, padding: '8px 14px', background: '#7c3aed' }}>+ Adicionar</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div style={{ ...styles.modalFooter, marginTop: 16 }}>
+              <button onClick={() => setKitModal(false)} style={styles.btnCancel}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -257,6 +392,7 @@ const styles: Record<string, React.CSSProperties> = {
   tr: { borderBottom: '1px solid var(--border-row)' },
   td: { padding: '11px 14px', fontSize: 13, color: 'var(--text-body)', verticalAlign: 'middle' },
   sku: { background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 700 },
+  kitTag: { background: '#f3e8ff', color: '#7c3aed', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const },
   categoryTag: { background: 'var(--bg-thead)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 500 },
   subText: { fontSize: 11, color: 'var(--text-secondary)' },
   stockBadge: { padding: '3px 8px', borderRadius: 20, fontSize: 12, fontWeight: 600 },
@@ -266,6 +402,7 @@ const styles: Record<string, React.CSSProperties> = {
   btnPrimary: { padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
   btnEdit: { padding: '5px 10px', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnStock: { padding: '5px 10px', background: '#f0fdf4', color: '#16a34a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
+  btnKit: { padding: '5px 10px', background: '#f3e8ff', color: '#7c3aed', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnDel: { padding: '5px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   empty: { padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },

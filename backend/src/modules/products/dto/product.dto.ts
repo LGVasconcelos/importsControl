@@ -39,6 +39,9 @@ export class CreateProductDto {
 
   @IsOptional() @IsString()
   mlItemId?: string;
+
+  @IsOptional() @IsBoolean()
+  isKit?: boolean;
 }
 
 export class UpdateProductDto {
@@ -79,5 +82,16 @@ export class UpdateProductDto {
   mlItemId?: string;
 
   @IsOptional() @IsBoolean()
+  isKit?: boolean;
+
+  @IsOptional() @IsBoolean()
   active?: boolean;
+}
+
+export class CreateKitItemDto {
+  @Transform(toNum) @IsNumber()
+  componentProductId: number;
+
+  @Transform(toNum) @IsNumber() @Min(1)
+  quantity: number;
 }

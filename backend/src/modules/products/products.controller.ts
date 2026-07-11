@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { ProductsService } from './products.service';
-import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import { CreateProductDto, UpdateProductDto, CreateKitItemDto } from './dto/product.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @UseGuards(JwtAuthGuard)
@@ -36,5 +36,22 @@ export class ProductsController {
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.productsService.remove(id);
+  }
+
+  // ── Kit endpoints ──────────────────────────────────────────────────────────
+
+  @Get(':id/kit-items')
+  getKitItems(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.getKitItems(id);
+  }
+
+  @Post(':id/kit-items')
+  addKitItem(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateKitItemDto) {
+    return this.productsService.addKitItem(id, dto);
+  }
+
+  @Delete('kit-items/:kitItemId')
+  removeKitItem(@Param('kitItemId', ParseIntPipe) kitItemId: number) {
+    return this.productsService.removeKitItem(kitItemId);
   }
 }

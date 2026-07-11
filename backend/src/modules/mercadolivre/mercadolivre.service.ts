@@ -5,7 +5,7 @@ import { createHash, randomBytes } from 'crypto';
 import { MlToken } from './ml-token.entity';
 import { Product } from '../products/product.entity';
 import { StockService } from '../stock/stock.service';
-import { MovementType } from '../stock/stock-movement.entity';
+import { ProductsService } from '../products/products.service';
 
 const ML_CLIENT_ID = process.env.ML_CLIENT_ID || '3499804579353115';
 const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET || 'VeP2f3VTsVxegaloJc9zeHLIitQq3Iqn';
@@ -20,6 +20,7 @@ export class MercadoLivreService {
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
     private readonly stockService: StockService,
+    private readonly productsService: ProductsService,
   ) {}
 
   private generateCodeVerifier(): string {
@@ -423,18 +424,39 @@ export class MercadoLivreService {
       const qty = Math.round(Number(item.quantity));
       if (qty <= 0) continue;
 
-      // Força a baixa mesmo se estoque for insuficiente (venda já aconteceu)
-      await this.stockService.createForcedExit({
-        productId: product.id,
-        quantity: qty,
-        reason: `Venda Mercado Livre - Pedido #${orderId}`,
-        orderReference: mlOrderRef,
-      });
+      if (product.isKit) {
+        // Kit: baixa estoque de cada componente proporcional à quantidade vendida
+        const kitItems = await this.productsService.findKitItemsByKitId(product.id);
+        for (const kitItem of kitItems) {
+          const componentQty = kitItem.quantity * qty;
+          await this.stockService.createForcedExit({
+            productId: kitItem.componentProductId,
+            quantity: componentQty,
+            reason: `Venda ML Kit "${product.name}" - Pedido #${orderId}`,
+            orderReference: mlOrderRef,
+          });
+        }
+        // Recalcula estoque virtual do kit
+        await this.productsService.recalcKitStock(product.id);
+        // Verifica se kit chegou a zero para pausar anúncios
+        const updatedKit = await this.productRepo.findOne({ where: { id: product.id } });
+        if (updatedKit && updatedKit.currentStock <= 0) {
+          await this.pauseProductListings(product, accessToken).catch(() => {});
+        }
+      } else {
+        // Produto simples: baixa normalmente
+        await this.stockService.createForcedExit({
+          productId: product.id,
+          quantity: qty,
+          reason: `Venda Mercado Livre - Pedido #${orderId}`,
+          orderReference: mlOrderRef,
+        });
 
-      // Auto-pausa se estoque chegou a 0 ou negativo
-      const updated = await this.productRepo.findOne({ where: { id: product.id } });
-      if (updated && updated.currentStock <= 0) {
-        await this.pauseProductListings(product, accessToken).catch(() => {});
+        // Auto-pausa se estoque chegou a 0 ou negativo
+        const updated = await this.productRepo.findOne({ where: { id: product.id } });
+        if (updated && updated.currentStock <= 0) {
+          await this.pauseProductListings(product, accessToken).catch(() => {});
+        }
       }
     }
     return true;

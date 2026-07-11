@@ -7,7 +7,16 @@ export interface Product {
   currentStock: number; minimumStock: number;
   active: boolean; category?: string; ncm?: string;
   mlItemId?: string;
+  isKit: boolean;
   createdAt: string; updatedAt: string;
+}
+
+export interface KitItem {
+  id: number;
+  kitProductId: number;
+  componentProductId: number;
+  quantity: number;
+  component: Product;
 }
 
 export const productsService = {
@@ -17,4 +26,8 @@ export const productsService = {
   create: (data: Partial<Product>) => api.post<Product>('/products', data).then(r => r.data),
   update: (id: number, data: Partial<Product>) => api.put<Product>(`/products/${id}`, data).then(r => r.data),
   remove: (id: number) => api.delete(`/products/${id}`).then(r => r.data),
+  getKitItems: (id: number) => api.get<KitItem[]>(`/products/${id}/kit-items`).then(r => r.data),
+  addKitItem: (id: number, componentProductId: number, quantity: number) =>
+    api.post<KitItem>(`/products/${id}/kit-items`, { componentProductId, quantity }).then(r => r.data),
+  removeKitItem: (kitItemId: number) => api.delete(`/products/kit-items/${kitItemId}`).then(r => r.data),
 };

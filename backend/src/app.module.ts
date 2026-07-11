@@ -17,6 +17,7 @@ import { StockMovement } from './modules/stock/stock-movement.entity';
 import { Order } from './modules/orders/order.entity';
 import { OrderItem } from './modules/orders/order-item.entity';
 import { Cost } from './modules/costs/cost.entity';
+import { KitItem } from './modules/products/kit-item.entity';
 
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { Cost } from './modules/costs/cost.entity';
       type: 'postgres',
       url: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      entities: [User, Product, StockMovement, Order, OrderItem, Cost, MlToken],
+      entities: [User, Product, StockMovement, Order, OrderItem, Cost, MlToken, KitItem],
       synchronize: true,
     }),
     AuthModule,

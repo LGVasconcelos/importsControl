@@ -47,6 +47,9 @@ export class Product {
   @Column({ nullable: true, type: 'text' })
   mlItemId: string;
 
+  @Column({ default: false })
+  isKit: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
