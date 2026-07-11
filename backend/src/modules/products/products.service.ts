@@ -81,7 +81,7 @@ export class ProductsService {
     const item = this.kitItemRepo.create({ kitProductId, componentProductId: dto.componentProductId, quantity: dto.quantity });
     const saved = await this.kitItemRepo.save(item);
     await this.recalcKitStock(kitProductId);
-    return this.kitItemRepo.findOne({ where: { id: saved.id } });
+    return this.kitItemRepo.findOne({ where: { id: saved.id } }) as Promise<KitItem>;
   }
 
   async removeKitItem(kitItemId: number): Promise<{ message: string }> {
