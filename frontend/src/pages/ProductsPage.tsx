@@ -8,6 +8,9 @@ import toast from 'react-hot-toast';
 const emptyForm: Partial<Product> = { sku: '', name: '', description: '', origin: '', supplier: '', unit: 'UN', costPrice: 0, salePrice: 0, minimumStock: 0, category: '', ncm: '', isKit: false };
 const emptyAdj = { type: 'ENTRY' as MovementType, quantity: 1, reason: '' };
 
+type PendingKitItem = { tempId: number; id?: number; componentProductId: number; quantity: number; component?: Product };
+let _tempId = 0;
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
@@ -19,72 +22,84 @@ export default function ProductsPage() {
   const [adjProduct, setAdjProduct] = useState<Product | null>(null);
   const [adj, setAdj] = useState(emptyAdj);
 
-  // Kit modal state
-  const [kitModal, setKitModal] = useState(false);
-  const [kitProduct, setKitProduct] = useState<Product | null>(null);
-  const [kitItems, setKitItems] = useState<KitItem[]>([]);
-  const [kitLoading, setKitLoading] = useState(false);
-  const [newComponent, setNewComponent] = useState({ componentProductId: '', quantity: 1 });
+  // Kit inline state (dentro do formulário de produto)
+  const [pendingKitItems, setPendingKitItems] = useState<PendingKitItem[]>([]);
+  const [removedKitItemIds, setRemovedKitItemIds] = useState<number[]>([]);
+  const [newKitComp, setNewKitComp] = useState({ componentProductId: '', quantity: 1 });
 
   const load = () => { setLoading(true); productsService.getAll(search || undefined).then(setProducts).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, [search]);
 
-  const openCreate = () => { setForm(emptyForm); setEditing(null); setModal(true); };
-  const openEdit = (p: Product) => { setForm(p); setEditing(p.id); setModal(true); };
-
-  const openKitModal = async (p: Product) => {
-    setKitProduct(p);
-    setKitModal(true);
-    setNewComponent({ componentProductId: '', quantity: 1 });
-    setKitLoading(true);
-    try {
-      const items = await productsService.getKitItems(p.id);
-      setKitItems(items);
-    } catch {
-      setKitItems([]);
-    } finally {
-      setKitLoading(false);
-    }
+  const openCreate = () => {
+    setForm(emptyForm);
+    setEditing(null);
+    setPendingKitItems([]);
+    setRemovedKitItemIds([]);
+    setNewKitComp({ componentProductId: '', quantity: 1 });
+    setModal(true);
   };
 
-  const handleAddKitItem = async () => {
-    if (!kitProduct || !newComponent.componentProductId) { toast.error('Selecione um componente'); return; }
-    if (newComponent.quantity < 1) { toast.error('Quantidade mínima é 1'); return; }
-    try {
-      await productsService.addKitItem(kitProduct.id, Number(newComponent.componentProductId), newComponent.quantity);
-      toast.success('Componente adicionado!');
-      setNewComponent({ componentProductId: '', quantity: 1 });
-      const items = await productsService.getKitItems(kitProduct.id);
-      setKitItems(items);
-      load();
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || 'Erro ao adicionar componente');
+  const openEdit = async (p: Product) => {
+    setForm(p);
+    setEditing(p.id);
+    setRemovedKitItemIds([]);
+    setNewKitComp({ componentProductId: '', quantity: 1 });
+    if (p.isKit) {
+      const items = await productsService.getKitItems(p.id).catch(() => [] as KitItem[]);
+      setPendingKitItems(items.map(ki => ({ tempId: ++_tempId, id: ki.id, componentProductId: ki.componentProductId, quantity: ki.quantity, component: ki.component })));
+    } else {
+      setPendingKitItems([]);
     }
+    setModal(true);
   };
 
-  const handleRemoveKitItem = async (kitItemId: number) => {
-    if (!confirm('Remover este componente do kit?')) return;
-    try {
-      await productsService.removeKitItem(kitItemId);
-      toast.success('Componente removido');
-      const items = await productsService.getKitItems(kitProduct!.id);
-      setKitItems(items);
-      load();
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || 'Erro ao remover componente');
-    }
+  const handleAddKitCompToForm = () => {
+    if (!newKitComp.componentProductId) { toast.error('Selecione um componente'); return; }
+    if (newKitComp.quantity < 1) { toast.error('Quantidade mínima é 1'); return; }
+    const compId = Number(newKitComp.componentProductId);
+    if (pendingKitItems.some(i => i.componentProductId === compId)) { toast.error('Componente já adicionado'); return; }
+    const component = products.find(p => p.id === compId);
+    setPendingKitItems(prev => [...prev, { tempId: ++_tempId, componentProductId: compId, quantity: newKitComp.quantity, component }]);
+    setNewKitComp({ componentProductId: '', quantity: 1 });
+  };
+
+  const handleRemoveKitCompFromForm = (tempId: number) => {
+    const item = pendingKitItems.find(i => i.tempId === tempId);
+    if (item?.id) setRemovedKitItemIds(prev => [...prev, item.id!]);
+    setPendingKitItems(prev => prev.filter(i => i.tempId !== tempId));
   };
 
   const handleSave = async () => {
     try {
+      if (form.isKit && pendingKitItems.length === 0) {
+        toast.error('Adicione ao menos um componente ao kit');
+        return;
+      }
       const payload = {
         ...form,
         costPrice: form.costPrice !== undefined ? Number(form.costPrice) : undefined,
         salePrice: form.salePrice !== undefined ? Number(form.salePrice) : undefined,
         minimumStock: form.minimumStock !== undefined ? Number(form.minimumStock) : undefined,
       };
-      if (editing) await productsService.update(editing, payload);
-      else await productsService.create(payload);
+      let productId: number;
+      if (editing) {
+        await productsService.update(editing, payload);
+        productId = editing;
+      } else {
+        const created = await productsService.create(payload);
+        productId = created.id;
+      }
+
+      // Sincroniza componentes do kit
+      if (form.isKit) {
+        for (const id of removedKitItemIds) {
+          await productsService.removeKitItem(id).catch(() => {});
+        }
+        for (const item of pendingKitItems.filter(i => !i.id)) {
+          await productsService.addKitItem(productId, item.componentProductId, item.quantity).catch(() => {});
+        }
+      }
+
       toast.success(editing ? 'Produto atualizado!' : 'Produto criado!');
       setModal(false);
       load();
@@ -212,10 +227,8 @@ export default function ProductsPage() {
                 </td>
                 <td style={styles.td} data-label="">
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button onClick={() => openEdit(p)} style={styles.btnEdit}>Editar</button>
-                    {p.isKit
-                      ? <button onClick={() => openKitModal(p)} style={styles.btnKit}>Componentes</button>
-                      : <button onClick={() => openAdj(p)} style={styles.btnStock}>Estoque</button>}
+                    <button onClick={() => openEdit(p)} style={styles.btnEdit}>{p.isKit ? 'Editar Kit' : 'Editar'}</button>
+                    {!p.isKit && <button onClick={() => openAdj(p)} style={styles.btnStock}>Estoque</button>}
                     <button onClick={() => handleDelete(p.id)} style={styles.btnDel}>Desativar</button>
                   </div>
                 </td>
@@ -252,15 +265,78 @@ export default function ProductsPage() {
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <input type="checkbox" id="isKit" checked={!!form.isKit} onChange={e => setForm(f => ({ ...f, isKit: e.target.checked }))} style={{ width: 16, height: 16, accentColor: '#7c3aed', cursor: 'pointer' }} />
+
+            {/* Toggle kit */}
+            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input type="checkbox" id="isKit" checked={!!form.isKit}
+                onChange={e => { setForm(f => ({ ...f, isKit: e.target.checked })); if (!e.target.checked) { setPendingKitItems([]); setRemovedKitItemIds([]); } }}
+                style={{ width: 16, height: 16, accentColor: '#7c3aed', cursor: 'pointer' }} />
               <label htmlFor="isKit" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
                 Este produto é um <span style={{ color: '#7c3aed' }}>Kit</span>
                 <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 6 }}>
-                  (ao vender, baixa o estoque dos componentes)
+                  (ao vender no ML, dá baixa nos componentes automaticamente)
                 </span>
               </label>
             </div>
+
+            {/* Seção de componentes inline */}
+            {form.isKit && (
+              <div style={{ marginTop: 16, border: '1.5px solid #e9d5ff', borderRadius: 10, padding: '14px 16px', background: '#faf5ff' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Componentes do Kit
+                </p>
+
+                {pendingKitItems.length > 0 && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 14 }}>
+                    <thead>
+                      <tr>
+                        {['Produto', 'SKU', 'Qtd / kit', ''].map(h => (
+                          <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#7c3aed', borderBottom: '1px solid #e9d5ff' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingKitItems.map(ki => (
+                        <tr key={ki.tempId} style={{ borderBottom: '1px solid #f3e8ff' }}>
+                          <td style={{ padding: '7px 8px', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{ki.component?.name ?? `ID ${ki.componentProductId}`}</td>
+                          <td style={{ padding: '7px 8px' }}><span style={styles.sku}>{ki.component?.sku ?? '—'}</span></td>
+                          <td style={{ padding: '7px 8px', textAlign: 'center' }}>
+                            <input type="number" min={1} value={ki.quantity}
+                              onChange={e => setPendingKitItems(prev => prev.map(i => i.tempId === ki.tempId ? { ...i, quantity: Number(e.target.value) } : i))}
+                              style={{ ...styles.input, width: 60, textAlign: 'center', padding: '4px 6px' }} />
+                          </td>
+                          <td style={{ padding: '7px 8px' }}>
+                            <button onClick={() => handleRemoveKitCompFromForm(ki.tempId)} style={{ ...styles.btnDel, padding: '3px 8px', fontSize: 11 }}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <label style={{ ...styles.label, color: '#7c3aed' }}>Produto componente</label>
+                    <select value={newKitComp.componentProductId}
+                      onChange={e => setNewKitComp(c => ({ ...c, componentProductId: e.target.value }))}
+                      style={{ ...styles.input, borderColor: '#e9d5ff' }}>
+                      <option value="">Selecionar produto...</option>
+                      {products.filter(p => !p.isKit && p.active && p.id !== (editing ?? 0) && !pendingKitItems.some(ki => ki.componentProductId === p.id)).map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ width: 90 }}>
+                    <label style={{ ...styles.label, color: '#7c3aed' }}>Quantidade</label>
+                    <input type="number" min={1} value={newKitComp.quantity}
+                      onChange={e => setNewKitComp(c => ({ ...c, quantity: Number(e.target.value) }))}
+                      style={{ ...styles.input, borderColor: '#e9d5ff' }} />
+                  </div>
+                  <button onClick={handleAddKitCompToForm} style={{ ...styles.btnPrimary, background: '#7c3aed', padding: '8px 14px' }}>+ Adicionar</button>
+                </div>
+              </div>
+            )}
+
             <div style={styles.modalFooter}>
               <button onClick={() => setModal(false)} style={styles.btnCancel}>Cancelar</button>
               <button onClick={handleSave} style={styles.btnPrimary}>Salvar</button>
@@ -268,7 +344,8 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
-      {adjModal && adjProduct && (        <div style={styles.overlay} className="modal-overlay">
+      {adjModal && adjProduct && (
+        <div style={styles.overlay} className="modal-overlay">
           <div style={{ ...styles.modal, maxWidth: 420 }} className="modal-box">
             <h2 style={styles.modalTitle}>Ajustar Estoque — {adjProduct.name}</h2>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
@@ -295,80 +372,6 @@ export default function ProductsPage() {
             <div style={styles.modalFooter}>
               <button onClick={() => setAdjModal(false)} style={styles.btnCancel}>Cancelar</button>
               <button onClick={handleAdj} style={styles.btnPrimary}>Salvar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {kitModal && kitProduct && (
-        <div style={styles.overlay} className="modal-overlay">
-          <div style={{ ...styles.modal, maxWidth: 560 }} className="modal-box">
-            <h2 style={styles.modalTitle}>Componentes do Kit — {kitProduct.name}</h2>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              Estoque calculado automaticamente com base nos componentes.
-            </p>
-
-            {kitLoading ? (
-              <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '20px 0' }}>Carregando...</p>
-            ) : (
-              <>
-                {kitItems.length === 0 ? (
-                  <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 }}>Nenhum componente cadastrado ainda.</p>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
-                    <thead>
-                      <tr style={{ background: 'var(--bg-thead)' }}>
-                        {['SKU', 'Componente', 'Qtd / kit', 'Estoque', ''].map(h => (
-                          <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {kitItems.map(ki => (
-                        <tr key={ki.id} style={{ borderBottom: '1px solid var(--border-row)' }}>
-                          <td style={{ padding: '8px 10px', fontSize: 12 }}>
-                            <span style={styles.sku}>{ki.component.sku}</span>
-                          </td>
-                          <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{ki.component.name}</td>
-                          <td style={{ padding: '8px 10px', fontSize: 13, textAlign: 'center' }}>
-                            <span style={{ background: '#f3e8ff', color: '#7c3aed', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>×{ki.quantity}</span>
-                          </td>
-                          <td style={{ padding: '8px 10px', fontSize: 12, color: ki.component.currentStock <= 0 ? '#dc2626' : '#16a34a' }}>
-                            {ki.component.currentStock} {ki.component.unit}
-                          </td>
-                          <td style={{ padding: '8px 10px' }}>
-                            <button onClick={() => handleRemoveKitItem(ki.id)} style={styles.btnDel}>Remover</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-
-                <div style={{ background: 'var(--bg-thead)', borderRadius: 10, padding: '14px 16px' }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase' }}>Adicionar componente</p>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: 160 }}>
-                      <label style={styles.label}>Produto</label>
-                      <select value={newComponent.componentProductId} onChange={e => setNewComponent(c => ({ ...c, componentProductId: e.target.value }))} style={styles.input}>
-                        <option value="">Selecionar...</option>
-                        {products.filter(p => !p.isKit && p.active && p.id !== kitProduct.id && !kitItems.some(ki => ki.componentProductId === p.id)).map(p => (
-                          <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div style={{ width: 90 }}>
-                      <label style={styles.label}>Quantidade</label>
-                      <input type="number" min={1} value={newComponent.quantity} onChange={e => setNewComponent(c => ({ ...c, quantity: Number(e.target.value) }))} style={styles.input} />
-                    </div>
-                    <button onClick={handleAddKitItem} style={{ ...styles.btnPrimary, padding: '8px 14px', background: '#7c3aed' }}>+ Adicionar</button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            <div style={{ ...styles.modalFooter, marginTop: 16 }}>
-              <button onClick={() => setKitModal(false)} style={styles.btnCancel}>Fechar</button>
             </div>
           </div>
         </div>
