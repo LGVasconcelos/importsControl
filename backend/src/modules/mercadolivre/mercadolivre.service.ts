@@ -183,7 +183,13 @@ export class MercadoLivreService {
   // Faz o PUT correto dependendo se é anúncio simples ou com variação
   // Formato simples:    MLB123456789
   // Formato variação:   MLB123456789:VARIATION_ID
-  private async updateMlItemStock(mlEntry: string, quantity: number, accessToken: string): Promise<{ ok: boolean; label: string; error?: string }> {
+  //
+  // Quando activate=true, reativa o anúncio (status: active) na MESMA chamada que
+  // atualiza a quantidade. Isso é importante: o ML recusa reativar um anúncio que
+  // ainda está com available_quantity=0 do lado dele, então separar em duas chamadas
+  // (reativar primeiro, atualizar quantidade depois) faz a reativação falhar
+  // silenciosamente e o item continua pausado mesmo após repor o estoque.
+  private async updateMlItemStock(mlEntry: string, quantity: number, accessToken: string, opts?: { activate?: boolean }): Promise<{ ok: boolean; label: string; error?: string }> {
     const [itemId, variationId] = mlEntry.split(':').map(s => s.trim());
     const label = variationId ? `${itemId} (var. ${variationId})` : itemId;
 
@@ -192,16 +198,21 @@ export class MercadoLivreService {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const statusData = await statusRes.json() as any;
-    if (statusData.status && statusData.status !== 'active') {
-      return { ok: false, label, error: `item ${statusData.status} (não é possível atualizar estoque)` };
+    const currentStatus = statusData.status as string | undefined;
+
+    if (currentStatus === 'closed') {
+      return { ok: false, label, error: 'item encerrado (não é possível reativar automaticamente)' };
+    }
+    if (currentStatus && currentStatus !== 'active' && !opts?.activate) {
+      return { ok: false, label, error: `item ${currentStatus} (não é possível atualizar estoque)` };
     }
 
-    let body: any;
-    if (variationId) {
+    const body: any = variationId
       // ML aceita atualização de variação via PUT /items/{id} com variations[]
-      body = { variations: [{ id: Number(variationId), available_quantity: quantity }] };
-    } else {
-      body = { available_quantity: quantity };
+      ? { variations: [{ id: Number(variationId), available_quantity: quantity }] }
+      : { available_quantity: quantity };
+    if (opts?.activate && currentStatus !== 'active') {
+      body.status = 'active';
     }
 
     const res = await fetch(`${ML_API}/items/${itemId}`, {
@@ -356,7 +367,7 @@ export class MercadoLivreService {
     return { linked, skipped, notFound, debug };
   }
 
-  async syncProductStock(productId: number): Promise<{ ok: boolean; message: string }> {
+  async syncProductStock(productId: number, opts?: { activate?: boolean }): Promise<{ ok: boolean; message: string }> {
     const product = await this.productRepo.findOne({ where: { id: productId } });
     if (!product) return { ok: false, message: 'Produto não encontrado' };
     if (!product.mlItemId) return { ok: false, message: 'Produto sem MLB vinculado' };
@@ -367,7 +378,7 @@ export class MercadoLivreService {
     const errors: string[] = [];
 
     for (const entry of ids) {
-      const r = await this.updateMlItemStock(entry, product.currentStock, accessToken);
+      const r = await this.updateMlItemStock(entry, product.currentStock, accessToken, opts);
       if (r.ok) results.push(r.label);
       else errors.push(`${r.label}: ${r.error}`);
     }
@@ -407,7 +418,7 @@ export class MercadoLivreService {
     const errors: string[] = [];
     for (const p of products) {
       if (!p.mlItemId) { skipped++; continue; }
-      const r = await this.syncProductStock(p.id);
+      const r = await this.syncProductStockWithAutoPause(p.id);
       if (r.ok) synced++; else errors.push(`${p.sku}: ${r.message}`);
     }
     return { synced, skipped, errors };
@@ -550,19 +561,6 @@ export class MercadoLivreService {
     }
   }
 
-  /** Reativa todos os anúncios ML de um produto */
-  private async activateProductListings(product: Product, accessToken: string): Promise<void> {
-    const ids = (product.mlItemId || '').split(',').map(s => s.trim()).filter(Boolean);
-    for (const entry of ids) {
-      const [itemId] = entry.split(':');
-      await fetch(`${ML_API}/items/${itemId}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active' }),
-      }).catch(() => {});
-    }
-  }
-
   /** Sincroniza estoque de um produto e pausa/reativa anúncios conforme necessário */
   async syncProductStockWithAutoPause(productId: number): Promise<{ ok: boolean; message: string }> {
     const product = await this.productRepo.findOne({ where: { id: productId } });
@@ -571,14 +569,14 @@ export class MercadoLivreService {
 
     const accessToken = await this.getValidToken();
 
-    // Auto-pausa ou reativa com base no estoque
     if (product.currentStock <= 0) {
       await this.pauseProductListings(product, accessToken);
-    } else {
-      await this.activateProductListings(product, accessToken);
+      return this.syncProductStock(productId);
     }
 
-    return this.syncProductStock(productId);
+    // Estoque > 0: atualiza quantidade e reativa numa única chamada por anúncio
+    // (ver comentário em updateMlItemStock sobre por que não dá pra separar isso em duas)
+    return this.syncProductStock(productId, { activate: true });
   }
 
   /** Busca status e estoque atual de todos os anúncios de um produto no ML */
