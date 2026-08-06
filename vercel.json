@@ -12,6 +12,6 @@
     }
   },
   "crons": [
-    { "path": "/api/mercadolivre/cron/tick", "schedule": "*/15 * * * *" }
+    { "path": "/api/mercadolivre/cron/tick", "schedule": "0 6 * * *" }
   ]
 }
