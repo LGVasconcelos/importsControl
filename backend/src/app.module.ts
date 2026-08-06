@@ -11,6 +11,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { ImportModule } from './modules/import/import.module';
 import { MercadoLivreModule } from './modules/mercadolivre/mercadolivre.module';
 import { MlToken } from './modules/mercadolivre/ml-token.entity';
+import { ProductListingPause } from './modules/mercadolivre/product-listing-pause.entity';
 import { User } from './modules/users/user.entity';
 import { Product } from './modules/products/product.entity';
 import { StockMovement } from './modules/stock/stock-movement.entity';
@@ -26,7 +27,7 @@ import { KitItem } from './modules/products/kit-item.entity';
       type: 'postgres',
       url: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      entities: [User, Product, StockMovement, Order, OrderItem, Cost, MlToken, KitItem],
+      entities: [User, Product, StockMovement, Order, OrderItem, Cost, MlToken, KitItem, ProductListingPause],
       synchronize: true,
     }),
     AuthModule,

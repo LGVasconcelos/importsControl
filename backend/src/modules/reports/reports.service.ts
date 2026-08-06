@@ -5,6 +5,11 @@ import { Product } from '../products/product.entity';
 import { StockMovement, MovementType } from '../stock/stock-movement.entity';
 import { Order, OrderStatus } from '../orders/order.entity';
 import { Cost } from '../costs/cost.entity';
+import { ProductListingPause } from '../mercadolivre/product-listing-pause.entity';
+
+// Usado só quando ainda não há pedidos RECEBIDOS suficientes para calcular um
+// lead time real (ver getReorderSuggestions) — estimativa grosseira de importação da China.
+const FALLBACK_LEAD_TIME_DAYS = 30;
 
 @Injectable()
 export class ReportsService {
@@ -13,6 +18,7 @@ export class ReportsService {
     @InjectRepository(StockMovement) private readonly movementRepo: Repository<StockMovement>,
     @InjectRepository(Order) private readonly orderRepo: Repository<Order>,
     @InjectRepository(Cost) private readonly costRepo: Repository<Cost>,
+    @InjectRepository(ProductListingPause) private readonly listingPauseRepo: Repository<ProductListingPause>,
   ) {}
 
   async getDashboard() {
@@ -79,5 +85,116 @@ export class ReportsService {
 
     const orders = await this.orderRepo.find({ order: { createdAt: 'DESC' } });
     return { byStatus, orders };
+  }
+
+  /**
+   * Sugestão de reposição de compra: cruza velocidade de venda (stock_movements),
+   * lead time médio de importação (orders x recebimento) e histórico de ruptura
+   * (product_listing_pauses) para priorizar o que comprar primeiro.
+   *
+   * Kits (isKit=true) são excluídos: o estoque deles é derivado dos componentes
+   * (recalcKitStock), não são comprados diretamente — a ruptura de um kit já
+   * aparece no componente que faltou, avaliado individualmente aqui.
+   */
+  async getReorderSuggestions(coverageDays = 14, lookbackDays = 30) {
+    const since = new Date(Date.now() - lookbackDays * 86400000);
+    const since90 = new Date(Date.now() - 90 * 86400000);
+
+    // Velocidade de venda: soma de saídas por produto na janela de lookback
+    const salesRows = await this.movementRepo
+      .createQueryBuilder('m')
+      .select('m.productId', 'productId')
+      .addSelect('SUM(m.quantity)', 'totalExit')
+      .where('m.type = :type', { type: MovementType.EXIT })
+      .andWhere('m.createdAt >= :since', { since })
+      .groupBy('m.productId')
+      .getRawMany();
+    const salesMap = new Map<number, number>(
+      salesRows.map(r => [Number(r.productId), Number(r.totalExit) / lookbackDays]),
+    );
+
+    // Lead time médio (global — volume de pedidos ainda é pequeno demais para
+    // confiar num cálculo por fornecedor): tempo entre orderDate e a movimentação
+    // de ENTRADA gerada no recebimento (actualArrival nunca é preenchido hoje).
+    const receivedOrders = await this.orderRepo.find({ where: { status: OrderStatus.RECEIVED } });
+    let avgLeadTimeDays = FALLBACK_LEAD_TIME_DAYS;
+    if (receivedOrders.length) {
+      const orderNumbers = receivedOrders.map(o => o.orderNumber);
+      const entryRows = await this.movementRepo
+        .createQueryBuilder('m')
+        .select('m.orderReference', 'orderReference')
+        .addSelect('MIN(m.createdAt)', 'receivedAt')
+        .where('m.type = :type', { type: MovementType.ENTRY })
+        .andWhere('m.orderReference IN (:...refs)', { refs: orderNumbers })
+        .groupBy('m.orderReference')
+        .getRawMany();
+      const receivedAtMap = new Map<string, Date>(entryRows.map(r => [r.orderReference, new Date(r.receivedAt)]));
+
+      let totalDays = 0, count = 0;
+      for (const o of receivedOrders) {
+        if (!o.orderDate) continue;
+        const receivedAt = receivedAtMap.get(o.orderNumber);
+        if (!receivedAt) continue;
+        const days = (receivedAt.getTime() - new Date(o.orderDate).getTime()) / 86400000;
+        if (days > 0) { totalDays += days; count++; }
+      }
+      if (count > 0) avgLeadTimeDays = totalDays / count;
+    }
+
+    // Ruptura: eventos que tocam os últimos 90 dias (abertos ou fechados nesse período)
+    const pauseEvents = await this.listingPauseRepo
+      .createQueryBuilder('e')
+      .where('e.pausedAt >= :since90', { since90 })
+      .orWhere('e.reactivatedAt IS NULL')
+      .getMany();
+
+    const now = Date.now();
+    const ruptureMap = new Map<number, { episodes: number; days: number }>();
+    const openProductIds = new Set<number>();
+    for (const ev of pauseEvents) {
+      if (!ev.reactivatedAt) openProductIds.add(ev.productId);
+      const end = ev.reactivatedAt ? ev.reactivatedAt.getTime() : now;
+      const days = Math.max(0, (end - ev.pausedAt.getTime()) / 86400000);
+      const cur = ruptureMap.get(ev.productId) || { episodes: 0, days: 0 };
+      cur.episodes += 1;
+      cur.days += days;
+      ruptureMap.set(ev.productId, cur);
+    }
+
+    const products = await this.productRepo.find({ where: { active: true, isKit: false } });
+
+    const suggestions = products.map(p => {
+      const avgDailySales = salesMap.get(p.id) || 0;
+      const rupture = ruptureMap.get(p.id) || { episodes: 0, days: 0 };
+      const daysUntilStockout = avgDailySales > 0 ? p.currentStock / avgDailySales : null;
+      const suggestedReorderQty = avgDailySales > 0
+        ? Math.max(0, Math.ceil(avgDailySales * (avgLeadTimeDays + coverageDays) - p.currentStock))
+        : 0;
+
+      return {
+        productId: p.id,
+        sku: p.sku,
+        name: p.name,
+        currentStock: p.currentStock,
+        minimumStock: p.minimumStock,
+        avgDailySales: Number(avgDailySales.toFixed(2)),
+        avgLeadTimeDays: Number(avgLeadTimeDays.toFixed(1)),
+        daysUntilStockout: daysUntilStockout !== null ? Number(daysUntilStockout.toFixed(1)) : null,
+        ruptureEpisodes90d: rupture.episodes,
+        ruptureDaysTotal90d: Number(rupture.days.toFixed(1)),
+        isCurrentlyPaused: openProductIds.has(p.id),
+        suggestedReorderQty,
+      };
+    });
+
+    suggestions.sort((a, b) => {
+      if (a.isCurrentlyPaused !== b.isCurrentlyPaused) return a.isCurrentlyPaused ? -1 : 1;
+      const aDays = a.daysUntilStockout ?? Infinity;
+      const bDays = b.daysUntilStockout ?? Infinity;
+      if (aDays !== bDays) return aDays - bDays;
+      return b.ruptureDaysTotal90d - a.ruptureDaysTotal90d;
+    });
+
+    return suggestions;
   }
 }

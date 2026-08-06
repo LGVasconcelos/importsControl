@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
 import { MlToken } from './ml-token.entity';
+import { ProductListingPause } from './product-listing-pause.entity';
 import { Product } from '../products/product.entity';
 import { StockService } from '../stock/stock.service';
 import { ProductsService } from '../products/products.service';
@@ -24,9 +25,25 @@ export class MercadoLivreService {
     private readonly tokenRepo: Repository<MlToken>,
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
+    @InjectRepository(ProductListingPause)
+    private readonly listingPauseRepo: Repository<ProductListingPause>,
     private readonly stockService: StockService,
     private readonly productsService: ProductsService,
   ) {}
+
+  /** Grava um evento de pausa, só se não houver um já aberto para o produto */
+  private async recordPauseEvent(productId: number): Promise<void> {
+    const open = await this.listingPauseRepo.findOne({ where: { productId, reactivatedAt: IsNull() } });
+    if (open) return;
+    await this.listingPauseRepo.save(this.listingPauseRepo.create({ productId, pausedAt: new Date() }));
+  }
+
+  /** Fecha o evento de pausa aberto do produto, se existir */
+  private async recordReactivationEvent(productId: number): Promise<void> {
+    const open = await this.listingPauseRepo.findOne({ where: { productId, reactivatedAt: IsNull() } });
+    if (!open) return;
+    await this.listingPauseRepo.update(open.id, { reactivatedAt: new Date() });
+  }
 
   private generateCodeVerifier(): string {
     return randomBytes(32).toString('base64url');
@@ -548,7 +565,7 @@ export class MercadoLivreService {
     return { processed, skipped, errors };
   }
 
-  /** Pausa todos os anúncios ML de um produto */
+  /** Pausa todos os anúncios ML de um produto e registra o início da ruptura */
   private async pauseProductListings(product: Product, accessToken: string): Promise<void> {
     const ids = (product.mlItemId || '').split(',').map(s => s.trim()).filter(Boolean);
     for (const entry of ids) {
@@ -559,6 +576,7 @@ export class MercadoLivreService {
         body: JSON.stringify({ status: 'paused' }),
       }).catch(() => {});
     }
+    await this.recordPauseEvent(product.id).catch(e => this.logger.warn(`Falha ao registrar pausa do produto #${product.id}: ${e?.message}`));
   }
 
   /** Sincroniza estoque de um produto e pausa/reativa anúncios conforme necessário */
@@ -576,7 +594,11 @@ export class MercadoLivreService {
 
     // Estoque > 0: atualiza quantidade e reativa numa única chamada por anúncio
     // (ver comentário em updateMlItemStock sobre por que não dá pra separar isso em duas)
-    return this.syncProductStock(productId, { activate: true });
+    const result = await this.syncProductStock(productId, { activate: true });
+    if (result.ok) {
+      await this.recordReactivationEvent(productId).catch(e => this.logger.warn(`Falha ao registrar reativação do produto #${productId}: ${e?.message}`));
+    }
+    return result;
   }
 
   /** Busca status e estoque atual de todos os anúncios de um produto no ML */
@@ -608,6 +630,13 @@ export class MercadoLivreService {
         result.push({ entry, itemId, variationId, status: 'error', mlStock: -1, localStock: product.currentStock, divergence: true });
       }
     }
+
+    // Reconciliação: se o anúncio está ativo no ML mas tínhamos um evento de pausa
+    // aberto (ex: reativado manualmente direto no ML, fora do nosso fluxo), fecha o evento.
+    if (result.some(r => r.status === 'active')) {
+      await this.recordReactivationEvent(productId).catch(() => {});
+    }
+
     return result;
   }
 

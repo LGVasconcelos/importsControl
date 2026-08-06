@@ -1,19 +1,22 @@
 import { useEffect, useState, useRef } from 'react';
 import { reportsService } from '../services/reports.service';
+import type { ReorderSuggestion } from '../services/reports.service';
 import toast from 'react-hot-toast';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { PageHeader, Tabs, TableWrap, Th, Td, ChartCard, Badge, Card, Button } from '../components/ui';
+import { PageHeader, Tabs, TableWrap, Th, Td, ChartCard, Badge, Card, Button, EmptyState } from '../components/ui';
 import { ORDER_STATUS_LABEL } from '../utils/orderStatus';
 
 const COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#dc2626', '#64748b'];
 
-type ReportTab = 'stock' | 'orders' | 'costs' | 'import';
+type ReportTab = 'stock' | 'orders' | 'costs' | 'reorder' | 'import';
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<ReportTab>('stock');
   const [stockData, setStockData] = useState<any[]>([]);
   const [orderData, setOrderData] = useState<any>(null);
   const [costData, setCostData] = useState<any[]>([]);
+  const [reorderData, setReorderData] = useState<ReorderSuggestion[]>([]);
+  const [reorderLoading, setReorderLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -21,6 +24,10 @@ export default function ReportsPage() {
     if (tab === 'stock') reportsService.getStock().then(setStockData);
     if (tab === 'orders') reportsService.getOrders().then(setOrderData);
     if (tab === 'costs') reportsService.getCosts().then(setCostData);
+    if (tab === 'reorder') {
+      setReorderLoading(true);
+      reportsService.getReorderSuggestions().then(setReorderData).finally(() => setReorderLoading(false));
+    }
   }, [tab]);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,6 +58,7 @@ export default function ReportsPage() {
             { key: 'stock', label: 'Estoque' },
             { key: 'orders', label: 'Pedidos' },
             { key: 'costs', label: 'Custos' },
+            { key: 'reorder', label: 'Reposição' },
             { key: 'import', label: 'Importar Excel' },
           ]}
           active={tab}
@@ -141,6 +149,57 @@ export default function ReportsPage() {
             ))}
           </tbody>
         </TableWrap>
+      )}
+
+      {tab === 'reorder' && (
+        <>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+            Ordenado por urgência: anúncios pausados agora primeiro, depois por dias até faltar o estoque.
+            As colunas de ruptura/tempo pausado só têm histórico a partir de quando essa análise entrou no ar — vão crescer com o tempo.
+          </p>
+          {reorderLoading ? (
+            <EmptyState>Calculando...</EmptyState>
+          ) : (
+            <TableWrap>
+              <thead>
+                <tr>
+                  {['SKU', 'Produto', 'Estoque', 'Vendas/dia', 'Dias até faltar', 'Rupturas (90d)', 'Tempo pausado (90d)', 'Sugestão de compra', 'Situação'].map(h => (
+                    <Th key={h}>{h}</Th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {reorderData.map(r => {
+                  const critical = !r.isCurrentlyPaused && r.daysUntilStockout !== null && r.daysUntilStockout <= 7;
+                  return (
+                    <tr key={r.productId}>
+                      <Td data-label="SKU"><Badge tone="primary">{r.sku}</Badge></Td>
+                      <Td data-label="Produto">{r.name}</Td>
+                      <Td data-label="Estoque" style={{ fontWeight: 700 }}>{r.currentStock}</Td>
+                      <Td data-label="Vendas/dia">{r.avgDailySales}</Td>
+                      <Td data-label="Dias até faltar">{r.daysUntilStockout ?? '—'}</Td>
+                      <Td data-label="Rupturas (90d)">{r.ruptureEpisodes90d}</Td>
+                      <Td data-label="Tempo pausado (90d)">{r.ruptureDaysTotal90d > 0 ? `${r.ruptureDaysTotal90d} dias` : '—'}</Td>
+                      <Td data-label="Sugestão de compra" style={{ fontWeight: 700 }}>{r.suggestedReorderQty > 0 ? r.suggestedReorderQty : '—'}</Td>
+                      <Td data-label="Situação">
+                        {r.isCurrentlyPaused
+                          ? <Badge tone="danger">Pausado agora</Badge>
+                          : critical
+                          ? <Badge tone="warning">Crítico</Badge>
+                          : r.avgDailySales > 0
+                          ? <Badge tone="success">OK</Badge>
+                          : <Badge tone="neutral">Sem histórico</Badge>}
+                      </Td>
+                    </tr>
+                  );
+                })}
+                {reorderData.length === 0 && (
+                  <tr><td colSpan={9}><EmptyState>Nenhum produto ativo encontrado.</EmptyState></td></tr>
+                )}
+              </tbody>
+            </TableWrap>
+          )}
+        </>
       )}
 
       {tab === 'import' && (

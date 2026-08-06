@@ -31,4 +31,12 @@ export class ReportsController {
   getOrdersReport() {
     return this.reportsService.getOrdersReport();
   }
+
+  @Get('reorder-suggestions')
+  getReorderSuggestions(@Query('coverageDays') coverageDays?: string, @Query('lookbackDays') lookbackDays?: string) {
+    return this.reportsService.getReorderSuggestions(
+      coverageDays ? Number(coverageDays) : undefined,
+      lookbackDays ? Number(lookbackDays) : undefined,
+    );
+  }
 }
