@@ -6,6 +6,7 @@ import type { Order } from '../services/orders.service';
 import { mercadolivreService } from '../services/mercadolivre.service';
 import type { MlSalesSummary } from '../services/mercadolivre.service';
 import toast from 'react-hot-toast';
+import { Button, Badge, PageHeader, Modal, Tabs, TableWrap, Th, Td, Card, FormField, TextInput, Select, ConfirmDialog } from '../components/ui';
 
 const COST_TYPES = ['Frete Internacional', 'Frete Nacional', 'Imposto de Importação (II)', 'IPI', 'ICMS', 'PIS/COFINS', 'Despachante', 'Armazenagem', 'Seguro', 'Outros'];
 
@@ -15,6 +16,7 @@ export default function CostsPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState<Partial<Cost>>({ orderId: 0, description: '', value: 0, currency: 'BRL', exchangeRate: 1, costType: '', notes: '' });
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const load = () => { setLoading(true); costsService.getAll().then(setCosts).finally(() => setLoading(false)); };
@@ -58,10 +60,11 @@ export default function CostsPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Remover este custo?')) return;
-    await costsService.remove(id);
+  const handleDelete = async () => {
+    if (deleteId == null) return;
+    await costsService.remove(deleteId);
     toast.success('Custo removido');
+    setDeleteId(null);
     load();
   };
 
@@ -71,49 +74,52 @@ export default function CostsPage() {
 
   return (
     <div>
-      <div style={styles.header} className="page-header">
-        <div>
-          <h1 style={styles.title}>Custos de Importação</h1>
-          <p style={styles.total}>Total acumulado: <strong>R$ {totalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></p>
-        </div>
-        {tab === 'costs' && <button onClick={() => setModal(true)} style={styles.btnPrimary}>+ Novo Custo</button>}
-      </div>
+      <PageHeader
+        title="Custos de Importação"
+        subtitle={<>Total acumulado: <strong>R$ {totalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></>}
+        actions={tab === 'costs' && <Button onClick={() => setModal(true)}>+ Novo Custo</Button>}
+      />
 
       {/* Tabs */}
-      <div style={styles.tabs}>
-        <button onClick={() => setTab('costs')} style={tab === 'costs' ? styles.tabActive : styles.tab}>Custos</button>
-        <button onClick={() => setTab('balance')} style={tab === 'balance' ? styles.tabActive : styles.tab}>Balanço</button>
+      <div style={{ marginBottom: 18 }}>
+        <Tabs
+          tabs={[{ key: 'costs', label: 'Custos' }, { key: 'balance', label: 'Balanço' }]}
+          active={tab}
+          onChange={setTab}
+        />
       </div>
 
       {/* Costs tab */}
       {tab === 'costs' && (
-        <div style={styles.tableWrap} className="responsive-table-wrap">
-          <table style={styles.table} className="responsive-table">
+        <>
+          <TableWrap>
             <thead>
-              <tr style={styles.thead}>
+              <tr>
                 {['Pedido', 'Descrição', 'Tipo', 'Valor', 'Moeda', 'Taxa', 'Valor BRL', 'Observação', 'Ações'].map(h => (
-                  <th key={h} style={styles.th}>{h}</th>
+                  <Th key={h}>{h}</Th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {costs.map(c => (
-                <tr key={c.id} style={styles.tr}>
-                  <td style={styles.td} data-label="Pedido"><span style={styles.sku}>{c.order?.orderNumber || `#${c.orderId}`}</span></td>
-                  <td style={styles.td} data-label="Descrição">{c.description}</td>
-                  <td style={styles.td} data-label="Tipo">{c.costType || '—'}</td>
-                  <td style={styles.td} data-label="Valor">{Number(c.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td style={styles.td} data-label="Moeda">{c.currency}</td>
-                  <td style={styles.td} data-label="Taxa">{Number(c.exchangeRate).toFixed(4)}</td>
-                  <td style={{ ...styles.td, fontWeight: 700 }} data-label="Valor BRL">R$ {Number(c.valueInBrl || c.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td style={styles.td} data-label="Obs.">{c.notes || '—'}</td>
-                  <td style={styles.td} data-label=""><button onClick={() => handleDelete(c.id)} style={styles.btnDel}>Remover</button></td>
+                <tr key={c.id}>
+                  <Td data-label="Pedido"><Badge tone="primary">{c.order?.orderNumber || `#${c.orderId}`}</Badge></Td>
+                  <Td data-label="Descrição">{c.description}</Td>
+                  <Td data-label="Tipo">{c.costType || '—'}</Td>
+                  <Td data-label="Valor">{Number(c.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Td>
+                  <Td data-label="Moeda">{c.currency}</Td>
+                  <Td data-label="Taxa">{Number(c.exchangeRate).toFixed(4)}</Td>
+                  <Td data-label="Valor BRL" style={{ fontWeight: 700 }}>R$ {Number(c.valueInBrl || c.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Td>
+                  <Td data-label="Obs.">{c.notes || '—'}</Td>
+                  <Td data-label="">
+                    <Button variant="danger" size="sm" onClick={() => setDeleteId(c.id)}>Remover</Button>
+                  </Td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </TableWrap>
           {loading ? <div style={styles.empty}>Carregando...</div> : costs.length === 0 && <div style={styles.empty}>Nenhum custo registrado.</div>}
-        </div>
+        </>
       )}
 
       {/* Balance tab */}
@@ -121,74 +127,70 @@ export default function CostsPage() {
         <div style={styles.balanceWrap}>
           {/* Filters */}
           <div style={styles.balanceFilters}>
-            <div style={styles.field}>
-              <label style={styles.label}>Data inicial</label>
-              <input type="date" value={balanceDateFrom} onChange={e => setBalanceDateFrom(e.target.value)} style={styles.input} />
-            </div>
-            <div style={styles.field}>
-              <label style={styles.label}>Data final</label>
-              <input type="date" value={balanceDateTo} onChange={e => setBalanceDateTo(e.target.value)} style={styles.input} />
-            </div>
-            <button onClick={loadBalance} style={{ ...styles.btnPrimary, alignSelf: 'flex-end' }}>Calcular</button>
+            <FormField label="Data inicial">
+              <TextInput type="date" value={balanceDateFrom} onChange={e => setBalanceDateFrom(e.target.value)} />
+            </FormField>
+            <FormField label="Data final">
+              <TextInput type="date" value={balanceDateTo} onChange={e => setBalanceDateTo(e.target.value)} />
+            </FormField>
+            <Button onClick={loadBalance} style={{ alignSelf: 'flex-end' }}>Calcular</Button>
           </div>
 
           {balanceLoading && <div style={styles.empty}>Buscando vendas no Mercado Livre...</div>}
-          {balanceError && <div style={{ ...styles.empty, color: '#dc2626' }}>{balanceError}</div>}
+          {balanceError && <div style={{ ...styles.empty, color: 'var(--color-danger)' }}>{balanceError}</div>}
 
           {!balanceLoading && !balanceError && salesSummary && (
             <>
               {/* Summary cards */}
               <div style={styles.balanceCards}>
-                <div style={{ ...styles.card, borderTop: '3px solid #16a34a' }}>
+                <Card accent="var(--color-success)">
                   <div style={styles.cardLabel}>Entrada (Líquido ML)</div>
-                  <div style={{ ...styles.cardValue, color: '#16a34a' }}>
+                  <div style={{ ...styles.cardValue, color: 'var(--color-success)' }}>
                     R$ {salesSummary.netRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </div>
                   <div style={styles.cardSub}>
                     {salesSummary.totalOrders} pedido(s) · bruto R$ {salesSummary.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · taxas ML R$ {salesSummary.totalFees.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </div>
-                </div>
-                <div style={{ ...styles.card, borderTop: '3px solid #dc2626' }}>
+                </Card>
+                <Card accent="var(--color-danger)">
                   <div style={styles.cardLabel}>Saída (Custos de Importação)</div>
-                  <div style={{ ...styles.cardValue, color: '#dc2626' }}>
+                  <div style={{ ...styles.cardValue, color: 'var(--color-danger)' }}>
                     R$ {totalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </div>
                   <div style={styles.cardSub}>{costs.length} custo(s) registrado(s)</div>
-                </div>
-                <div style={{ ...styles.card, borderTop: `3px solid ${balance !== null && balance >= 0 ? '#2563eb' : '#f59e0b'}` }}>
+                </Card>
+                <Card accent={balance !== null && balance >= 0 ? 'var(--color-primary)' : 'var(--color-warning)'}>
                   <div style={styles.cardLabel}>Balanço (Entrada − Saída)</div>
-                  <div style={{ ...styles.cardValue, color: balance !== null && balance >= 0 ? '#2563eb' : '#f59e0b' }}>
+                  <div style={{ ...styles.cardValue, color: balance !== null && balance >= 0 ? 'var(--color-primary)' : 'var(--color-warning)' }}>
                     R$ {balance !== null ? balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
                   </div>
                   <div style={styles.cardSub}>Líquido ML − Custos de Importação</div>
-                </div>
+                </Card>
               </div>
 
               {/* Orders detail */}
               {salesSummary.orders.length > 0 && (
                 <div style={{ marginTop: 24 }}>
                   <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Pedidos Mercado Livre</h3>
-                  <div style={{ ...styles.tableWrap, maxHeight: 'none', overflowY: 'visible' }}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr style={styles.thead}>
-                          {['Pedido ML', 'Data', 'Itens', 'Bruto', 'Taxa ML', 'Líquido'].map(h => <th key={h} style={styles.th}>{h}</th>)}
+                  <TableWrap maxHeight="none">
+                    <thead>
+                      <tr>
+                        {['Pedido ML', 'Data', 'Itens', 'Bruto', 'Taxa ML', 'Líquido'].map(h => <Th key={h}>{h}</Th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salesSummary.orders.map(o => (
+                        <tr key={o.id}>
+                          <Td data-label="Pedido ML"><Badge tone="primary">#{o.id}</Badge></Td>
+                          <Td data-label="Data">{new Date(o.date).toLocaleDateString('pt-BR')}</Td>
+                          <Td data-label="Itens">{o.items.map(i => `${i.quantity}× ${i.title}`).join(', ') || '—'}</Td>
+                          <Td data-label="Bruto">R$ {o.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Td>
+                          <Td data-label="Taxa ML" style={{ fontWeight: 700, color: 'var(--color-danger)', fontSize: 12 }}>−R$ {o.fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Td>
+                          <Td data-label="Líquido" style={{ fontWeight: 700, color: 'var(--color-success)' }}>R$ {o.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {salesSummary.orders.map(o => (
-                          <tr key={o.id} style={styles.tr}>
-                            <td style={styles.td}><span style={styles.sku}>#{o.id}</span></td>
-                            <td style={styles.td}>{new Date(o.date).toLocaleDateString('pt-BR')}</td>
-                            <td style={styles.td}>{o.items.map(i => `${i.quantity}× ${i.title}`).join(', ') || '—'}</td>
-                            <td style={styles.td}>R$ {o.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                            <td style={{ ...styles.td, fontWeight: 700, color: '#dc2626', fontSize: 12 }}>−R$ {o.fee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                            <td style={{ ...styles.td, fontWeight: 700, color: '#16a34a' }}>R$ {o.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </TableWrap>
                 </div>
               )}
             </>
@@ -197,73 +199,68 @@ export default function CostsPage() {
       )}
 
       {modal && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h2 style={styles.modalTitle}>Novo Custo</h2>
-            <div style={styles.fields}>
-              <div style={styles.field}><label style={styles.label}>Pedido *</label>
-                <select value={form.orderId} onChange={e => setForm(f => ({ ...f, orderId: Number(e.target.value) }))} style={styles.input}>
-                  <option value={0}>Selecione...</option>
-                  {orders.map(o => <option key={o.id} value={o.id}>{o.orderNumber} — {o.supplier}</option>)}
-                </select>
-              </div>
-              <div style={styles.field}><label style={styles.label}>Descrição *</label><input value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Tipo de Custo</label>
-                <select value={form.costType || ''} onChange={e => setForm(f => ({ ...f, costType: e.target.value }))} style={styles.input}>
-                  <option value="">Selecione...</option>
-                  {COST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div style={styles.field}><label style={styles.label}>Valor *</label><input type="number" step="0.01" value={form.value || 0} onChange={e => setForm(f => ({ ...f, value: Number(e.target.value) }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Moeda</label>
-                <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} style={styles.input}>
-                  {['BRL', 'USD', 'EUR', 'CNY', 'GBP'].map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div style={styles.field}><label style={styles.label}>Taxa de Câmbio</label><input type="number" step="0.0001" value={form.exchangeRate || 1} onChange={e => setForm(f => ({ ...f, exchangeRate: Number(e.target.value) }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Observação</label><input value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} style={styles.input} /></div>
-            </div>
-            <div style={styles.modalFooter}>
-              <button onClick={() => setModal(false)} style={styles.btnCancel}>Cancelar</button>
-              <button onClick={handleSave} style={styles.btnPrimary}>Salvar</button>
-            </div>
+        <Modal
+          title="Novo Custo"
+          onClose={() => setModal(false)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setModal(false)}>Cancelar</Button>
+              <Button onClick={handleSave}>Salvar</Button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <FormField label="Pedido *">
+              <Select value={form.orderId} onChange={e => setForm(f => ({ ...f, orderId: Number(e.target.value) }))}>
+                <option value={0}>Selecione...</option>
+                {orders.map(o => <option key={o.id} value={o.id}>{o.orderNumber} — {o.supplier}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Descrição *">
+              <TextInput value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            </FormField>
+            <FormField label="Tipo de Custo">
+              <Select value={form.costType || ''} onChange={e => setForm(f => ({ ...f, costType: e.target.value }))}>
+                <option value="">Selecione...</option>
+                {COST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Valor *">
+              <TextInput type="number" step="0.01" value={form.value || 0} onChange={e => setForm(f => ({ ...f, value: Number(e.target.value) }))} />
+            </FormField>
+            <FormField label="Moeda">
+              <Select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}>
+                {['BRL', 'USD', 'EUR', 'CNY', 'GBP'].map(c => <option key={c} value={c}>{c}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Taxa de Câmbio">
+              <TextInput type="number" step="0.0001" value={form.exchangeRate || 1} onChange={e => setForm(f => ({ ...f, exchangeRate: Number(e.target.value) }))} />
+            </FormField>
+            <FormField label="Observação">
+              <TextInput value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            </FormField>
           </div>
-        </div>
+        </Modal>
       )}
+
+      <ConfirmDialog
+        open={deleteId != null}
+        title="Remover custo?"
+        description="Esta ação não pode ser desfeita. O custo será removido permanentemente."
+        confirmLabel="Remover"
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 },
-  total: { fontSize: 14, color: 'var(--text-secondary)' },
-  tabs: { display: 'flex', gap: 4, marginBottom: 18, borderBottom: '2px solid var(--border)' },
-  tab: { padding: '8px 20px', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' },
-  tabActive: { padding: '8px 20px', background: 'transparent', border: 'none', borderBottom: '2px solid #2563eb', marginBottom: -2, cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#2563eb' },
-  tableWrap: { background: 'var(--bg-card)', borderRadius: 12, boxShadow: 'var(--shadow)', overflowY: 'auto', overflowX: 'auto', maxHeight: 'calc(100vh - 260px)', minHeight: 200 },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  thead: { background: 'var(--bg-thead)' },
-  th: { padding: '12px 14px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg-thead)', zIndex: 1 },
-  tr: { borderBottom: '1px solid var(--border-row)' },
-  td: { padding: '11px 14px', fontSize: 13, color: 'var(--text-body)' },
-  sku: { background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 700 },
   empty: { padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' },
-  btnPrimary: { padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
-  btnDel: { padding: '5px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20 },
-  fields: { display: 'flex', flexDirection: 'column', gap: 14 },
-  field: { display: 'flex', flexDirection: 'column', gap: 4 },
-  label: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' },
-  input: { padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-body)' },
-  modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 },
-  btnCancel: { padding: '9px 18px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
   balanceWrap: { display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' },
   balanceFilters: { display: 'flex', gap: 14, alignItems: 'flex-end', background: 'var(--bg-card)', padding: '16px 20px', borderRadius: 12, boxShadow: 'var(--shadow)', flexWrap: 'wrap' },
   balanceCards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 },
-  card: { background: 'var(--bg-card)', borderRadius: 12, padding: '20px 24px', boxShadow: 'var(--shadow)' },
   cardLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8 },
   cardValue: { fontSize: 26, fontWeight: 800, marginBottom: 4 },
   cardSub: { fontSize: 12, color: 'var(--text-secondary)' },

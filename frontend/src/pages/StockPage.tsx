@@ -4,10 +4,11 @@ import type { StockMovement, MovementType } from '../services/stock.service';
 import { productsService } from '../services/products.service';
 import type { Product } from '../services/products.service';
 import toast from 'react-hot-toast';
+import { Button, Badge, PageHeader, Modal, TableWrap, Th, Td, FormField, TextInput, Select } from '../components/ui';
+import type { BadgeTone } from '../components/ui';
 
 const typeLabel: Record<MovementType, string> = { ENTRY: '▲ Entrada', EXIT: '▼ Saída', ADJUSTMENT: '⇄ Ajuste' };
-const typeColor: Record<MovementType, string> = { ENTRY: '#16a34a', EXIT: '#dc2626', ADJUSTMENT: '#ca8a04' };
-const typeBg: Record<MovementType, string> = { ENTRY: '#dcfce7', EXIT: '#fee2e2', ADJUSTMENT: '#fef9c3' };
+const typeTone: Record<MovementType, BadgeTone> = { ENTRY: 'success', EXIT: 'danger', ADJUSTMENT: 'warning' };
 
 export default function StockPage() {
   const [movements, setMovements] = useState<StockMovement[]>([]);
@@ -37,101 +38,78 @@ export default function StockPage() {
 
   return (
     <div>
-      <div style={styles.header} className="page-header">
-        <h1 style={styles.title}>Movimentações de Estoque</h1>
-        <button onClick={() => setModal(true)} style={styles.btnPrimary}>+ Nova Movimentação</button>
-      </div>
-      <div style={styles.tableWrap} className="responsive-table-wrap">
-        <table style={styles.table} className="responsive-table">
-          <thead>
-            <tr style={styles.thead}>
-              {['Data', 'Produto', 'Tipo', 'Qtd', 'Antes', 'Depois', 'Motivo', 'Referência', 'Usuário'].map(h => (
-                <th key={h} style={styles.th}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {movements.map(m => (
-              <tr key={m.id} style={styles.tr}>
-                <td style={styles.td} data-label="Data">{new Date(m.createdAt).toLocaleString('pt-BR')}</td>
-                <td style={styles.td} data-label="Produto"><b>{m.product?.name}</b><br /><span style={{ fontSize: 11, color: '#94a3b8' }}>{m.product?.sku}</span></td>
-                <td style={styles.td} data-label="Tipo"><span style={{ ...styles.badge, color: typeColor[m.type], background: typeBg[m.type] }}>{typeLabel[m.type]}</span></td>
-                <td style={{ ...styles.td, fontWeight: 700 }} data-label="Qtd">{m.quantity}</td>
-                <td style={styles.td} data-label="Antes">{m.stockBefore}</td>
-                <td style={styles.td} data-label="Depois">{m.stockAfter}</td>
-                <td style={styles.td} data-label="Motivo">{m.reason || '—'}</td>
-                <td style={styles.td} data-label="Referência">{m.orderReference || '—'}</td>
-                <td style={styles.td} data-label="Usuário">{m.user?.name || '—'}</td>
-              </tr>
+      <PageHeader
+        title="Movimentações de Estoque"
+        actions={<Button onClick={() => setModal(true)}>+ Nova Movimentação</Button>}
+      />
+
+      <TableWrap>
+        <thead>
+          <tr>
+            {['Data', 'Produto', 'Tipo', 'Qtd', 'Antes', 'Depois', 'Motivo', 'Referência', 'Usuário'].map(h => (
+              <Th key={h}>{h}</Th>
             ))}
-          </tbody>
-        </table>
-        {loading ? <div style={styles.empty}>Carregando...</div> : movements.length === 0 && <div style={styles.empty}>Nenhuma movimentação registrada.</div>}
-      </div>
+          </tr>
+        </thead>
+        <tbody>
+          {movements.map(m => (
+            <tr key={m.id}>
+              <Td data-label="Data">{new Date(m.createdAt).toLocaleString('pt-BR')}</Td>
+              <Td data-label="Produto"><b>{m.product?.name}</b><br /><span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{m.product?.sku}</span></Td>
+              <Td data-label="Tipo"><Badge tone={typeTone[m.type]}>{typeLabel[m.type]}</Badge></Td>
+              <Td data-label="Qtd" style={{ fontWeight: 700 }}>{m.quantity}</Td>
+              <Td data-label="Antes">{m.stockBefore}</Td>
+              <Td data-label="Depois">{m.stockAfter}</Td>
+              <Td data-label="Motivo">{m.reason || '—'}</Td>
+              <Td data-label="Referência">{m.orderReference || '—'}</Td>
+              <Td data-label="Usuário">{m.user?.name || '—'}</Td>
+            </tr>
+          ))}
+          {loading ? (
+            <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>Carregando...</td></tr>
+          ) : movements.length === 0 && (
+            <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>Nenhuma movimentação registrada.</td></tr>
+          )}
+        </tbody>
+      </TableWrap>
 
       {modal && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h2 style={styles.modalTitle}>Nova Movimentação</h2>
-            <div style={styles.fields}>
-              <div style={styles.field}>
-                <label style={styles.label}>Produto *</label>
-                <select value={form.productId} onChange={e => setForm(f => ({ ...f, productId: Number(e.target.value) }))} style={styles.input}>
-                  <option value={0}>Selecione...</option>
-                  {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku}) — Estoque: {p.currentStock}</option>)}
-                </select>
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>Tipo *</label>
-                <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as MovementType }))} style={styles.input}>
-                  <option value="ENTRY">Entrada</option>
-                  <option value="EXIT">Saída</option>
-                  <option value="ADJUSTMENT">Ajuste de Inventário</option>
-                </select>
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>Quantidade *</label>
-                <input type="number" min={1} value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: Number(e.target.value) }))} style={styles.input} />
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>Motivo</label>
-                <input value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} style={styles.input} />
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>Referência do Pedido</label>
-                <input value={form.orderReference} onChange={e => setForm(f => ({ ...f, orderReference: e.target.value }))} style={styles.input} />
-              </div>
-            </div>
-            <div style={styles.modalFooter}>
-              <button onClick={() => setModal(false)} style={styles.btnCancel}>Cancelar</button>
-              <button onClick={handleSave} style={styles.btnPrimary}>Registrar</button>
-            </div>
+        <Modal
+          title="Nova Movimentação"
+          onClose={() => setModal(false)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setModal(false)}>Cancelar</Button>
+              <Button onClick={handleSave}>Registrar</Button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <FormField label="Produto *">
+              <Select value={form.productId} onChange={e => setForm(f => ({ ...f, productId: Number(e.target.value) }))}>
+                <option value={0}>Selecione...</option>
+                {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku}) — Estoque: {p.currentStock}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Tipo *">
+              <Select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as MovementType }))}>
+                <option value="ENTRY">Entrada</option>
+                <option value="EXIT">Saída</option>
+                <option value="ADJUSTMENT">Ajuste de Inventário</option>
+              </Select>
+            </FormField>
+            <FormField label="Quantidade *">
+              <TextInput type="number" min={1} value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: Number(e.target.value) }))} />
+            </FormField>
+            <FormField label="Motivo">
+              <TextInput value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} />
+            </FormField>
+            <FormField label="Referência do Pedido">
+              <TextInput value={form.orderReference} onChange={e => setForm(f => ({ ...f, orderReference: e.target.value }))} />
+            </FormField>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' },
-  tableWrap: { background: 'var(--bg-card)', borderRadius: 12, boxShadow: 'var(--shadow)', overflowY: 'auto', overflowX: 'auto', maxHeight: 'calc(100vh - 200px)', minHeight: 200 },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  thead: { background: 'var(--bg-thead)' },
-  th: { padding: '12px 14px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg-thead)', zIndex: 1 },
-  tr: { borderBottom: '1px solid var(--border-row)' },
-  td: { padding: '11px 14px', fontSize: 13, color: 'var(--text-body)' },
-  badge: { padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 },
-  empty: { padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' },
-  btnPrimary: { padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 480 },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20 },
-  fields: { display: 'flex', flexDirection: 'column', gap: 14 },
-  field: { display: 'flex', flexDirection: 'column', gap: 4 },
-  label: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' },
-  input: { padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-body)' },
-  modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 },
-  btnCancel: { padding: '9px 18px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
-};

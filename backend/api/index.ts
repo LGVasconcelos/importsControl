@@ -12,7 +12,7 @@ let isInitialized = false;
 
 async function bootstrap() {
   if (isInitialized) return;
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(expressServer), { logger: false });
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(expressServer), { logger: ['error', 'warn', 'log'] });
   app.enableCors({ origin: '*', credentials: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.init();

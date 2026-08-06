@@ -4,6 +4,9 @@ import type { Product, KitItem } from '../services/products.service';
 import { stockService } from '../services/stock.service';
 import type { MovementType } from '../services/stock.service';
 import toast from 'react-hot-toast';
+import {
+  Button, Badge, StatCard, PageHeader, Modal, TableWrap, Th, Td, FormField, TextInput, Select, ConfirmDialog, EmptyState,
+} from '../components/ui';
 
 const emptyForm: Partial<Product> = { sku: '', name: '', description: '', origin: '', supplier: '', unit: 'UN', costPrice: 0, salePrice: 0, minimumStock: 0, category: '', ncm: '', isKit: false };
 const emptyAdj = { type: 'ENTRY' as MovementType, quantity: 1, reason: '' };
@@ -21,6 +24,8 @@ export default function ProductsPage() {
   const [adjModal, setAdjModal] = useState(false);
   const [adjProduct, setAdjProduct] = useState<Product | null>(null);
   const [adj, setAdj] = useState(emptyAdj);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [stockFilter, setStockFilter] = useState<'all' | 'zero' | 'low' | 'ok'>('all');
 
   // Kit inline state (dentro do formulário de produto)
   const [pendingKitItems, setPendingKitItems] = useState<PendingKitItem[]>([]);
@@ -108,10 +113,11 @@ export default function ProductsPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Desativar este produto?')) return;
-    await productsService.remove(id);
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    await productsService.remove(deleteTarget.id);
     toast.success('Produto desativado');
+    setDeleteTarget(null);
     load();
   };
 
@@ -135,8 +141,6 @@ export default function ProductsPage() {
   const lowStock = products.filter(p => p.currentStock > 0 && p.minimumStock > 0 && p.currentStock < p.minimumStock).length;
   const okStock = total - zeroStock - lowStock;
 
-  const [stockFilter, setStockFilter] = useState<'all' | 'zero' | 'low' | 'ok'>('all');
-
   const filtered = products.filter(p => {
     if (stockFilter === 'zero') return p.currentStock <= 0;
     if (stockFilter === 'low') return p.currentStock > 0 && p.minimumStock > 0 && p.currentStock < p.minimumStock;
@@ -144,277 +148,256 @@ export default function ProductsPage() {
     return true;
   });
 
-  const stockColor = (p: Product) => ({
-    color: p.currentStock <= 0 ? '#dc2626' : p.currentStock < p.minimumStock && p.minimumStock > 0 ? '#92400e' : '#16a34a',
-    background: p.currentStock <= 0 ? '#fee2e2' : p.currentStock < p.minimumStock && p.minimumStock > 0 ? '#fef3c7' : '#dcfce7',
-  });
+  const stockTone = (p: Product): 'danger' | 'warning' | 'success' =>
+    p.currentStock <= 0 ? 'danger' : p.currentStock < p.minimumStock && p.minimumStock > 0 ? 'warning' : 'success';
+
+  const filters = [
+    { key: 'all' as const, label: 'Total', value: total, color: 'var(--color-primary)' },
+    { key: 'zero' as const, label: 'Em falta', value: zeroStock, color: 'var(--color-danger)' },
+    { key: 'low' as const, label: 'Estoque baixo', value: lowStock, color: 'var(--color-warning)' },
+    { key: 'ok' as const, label: 'Normal', value: okStock, color: 'var(--color-success)' },
+  ];
 
   return (
     <div>
-      <div style={styles.header} className="page-header">
-        <h1 style={styles.title}>Produtos</h1>
-        <button onClick={openCreate} style={styles.btnPrimary}>+ Novo Produto</button>
-      </div>
+      <PageHeader title="Produtos" actions={<Button onClick={openCreate}>+ Novo Produto</Button>} />
 
       {/* Cards de resumo */}
       {!loading && (
-        <div style={styles.statRow} className="stat-row-products">
-          {([
-            { label: 'Total', value: total, color: '#2563eb', bg: '#eff6ff', filter: 'all' },
-            { label: 'Em falta', value: zeroStock, color: '#dc2626', bg: '#fee2e2', filter: 'zero' },
-            { label: 'Estoque baixo', value: lowStock, color: '#92400e', bg: '#fef3c7', filter: 'low' },
-            { label: 'Normal', value: okStock, color: '#16a34a', bg: '#dcfce7', filter: 'ok' },
-          ] as const).map(s => (
-            <button key={s.filter} onClick={() => setStockFilter(f => f === s.filter ? 'all' : s.filter)}
-              style={{ ...styles.statCard, borderColor: stockFilter === s.filter ? s.color : 'transparent', boxShadow: stockFilter === s.filter ? `0 0 0 2px ${s.color}40` : 'var(--shadow)' }}>
-              <span style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: s.color, background: s.bg, padding: '2px 8px', borderRadius: 20 }}>{s.label}</span>
-            </button>
+        <div className="stat-row-products" style={styles.statRow}>
+          {filters.map(f => (
+            <StatCard
+              key={f.key}
+              label={f.label}
+              value={f.value}
+              color={f.color}
+              active={stockFilter === f.key}
+              onClick={() => setStockFilter(cur => cur === f.key ? 'all' : f.key)}
+            />
           ))}
         </div>
       )}
 
       {/* Barra de busca */}
       <div style={styles.toolbar}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou SKU..." style={styles.searchInput} />
+        <TextInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou SKU..." style={{ maxWidth: 340 }} />
         {stockFilter !== 'all' && (
-          <button onClick={() => setStockFilter('all')} style={styles.clearFilter}>✕ Limpar filtro</button>
+          <Button variant="secondary" size="sm" onClick={() => setStockFilter('all')}>✕ Limpar filtro</Button>
         )}
       </div>
 
-      <div style={styles.tableWrap} className="responsive-table-wrap">
-        <table style={styles.table} className="responsive-table">
-          <thead>
-            <tr style={styles.thead}>
-              {['SKU', 'Produto', 'Estoque', 'Preços', 'Ações'].map(h => (
-                <th key={h} style={styles.th}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(p => (
+      <TableWrap>
+        <thead>
+          <tr>
+            {['SKU', 'Produto', 'Estoque', 'Preços', 'Ações'].map(h => <Th key={h}>{h}</Th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {loading ? (
+            <tr><td colSpan={5}><EmptyState>Carregando...</EmptyState></td></tr>
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={5}><EmptyState>Nenhum produto encontrado.</EmptyState></td></tr>
+          ) : (
+            filtered.map(p => (
               <tr key={p.id} style={styles.tr}>
-                <td style={styles.td} data-label="SKU">
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <span style={styles.sku}>{p.sku}</span>
-                    {p.category && <span style={styles.categoryTag}>{p.category}</span>}
-                    {p.isKit && <span style={styles.kitTag}>KIT</span>}
+                <Td data-label="SKU">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+                    <Badge tone="primary">{p.sku}</Badge>
+                    {p.category && <Badge tone="neutral">{p.category}</Badge>}
+                    {p.isKit && <Badge tone="info">KIT</Badge>}
                   </div>
-                </td>
-                <td style={styles.td} data-label="Produto">
+                </Td>
+                <Td data-label="Produto">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</span>
                     <span style={styles.subText}>
                       {[p.supplier, p.origin].filter(Boolean).join(' · ') || '—'}
                     </span>
                   </div>
-                </td>
-                <td style={styles.td} data-label="Estoque">
+                </Td>
+                <Td data-label="Estoque">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
-                    <span style={{ ...styles.stockBadge, ...stockColor(p) }}>
-                      {p.currentStock} {p.unit}
-                    </span>
+                    <Badge tone={stockTone(p)}>{p.currentStock} {p.unit}</Badge>
                     {p.minimumStock > 0 && (
                       <span style={styles.minStock}>mín. {p.minimumStock}</span>
                     )}
                   </div>
-                </td>
-                <td style={styles.td} data-label="Preços">
+                </Td>
+                <Td data-label="Preços">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <span style={styles.priceRow}><span style={styles.priceLabel}>Custo</span> R$ {Number(p.costPrice).toFixed(2)}</span>
                     <span style={styles.priceRow}><span style={styles.priceLabel}>Venda</span> R$ {Number(p.salePrice).toFixed(2)}</span>
                   </div>
-                </td>
-                <td style={styles.td} data-label="">
+                </Td>
+                <Td data-label="">
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button onClick={() => openEdit(p)} style={styles.btnEdit}>{p.isKit ? 'Editar Kit' : 'Editar'}</button>
-                    {!p.isKit && <button onClick={() => openAdj(p)} style={styles.btnStock}>Estoque</button>}
-                    <button onClick={() => handleDelete(p.id)} style={styles.btnDel}>Desativar</button>
+                    <Button variant="secondary" size="sm" onClick={() => openEdit(p)}>{p.isKit ? 'Editar Kit' : 'Editar'}</Button>
+                    {!p.isKit && <Button variant="success" size="sm" onClick={() => openAdj(p)}>Estoque</Button>}
+                    <Button variant="danger" size="sm" onClick={() => setDeleteTarget(p)}>Desativar</Button>
                   </div>
-                </td>
+                </Td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {loading ? (
-          <div style={styles.empty}>Carregando...</div>
-        ) : filtered.length === 0 && (
-          <div style={styles.empty}>Nenhum produto encontrado.</div>
-        )}
-      </div>
+            ))
+          )}
+        </tbody>
+      </TableWrap>
 
       {modal && (
-        <div style={styles.overlay} className="modal-overlay">
-          <div style={styles.modal} className="modal-box">
-            <h2 style={styles.modalTitle}>{editing ? 'Editar Produto' : 'Novo Produto'}</h2>
-            <div style={styles.grid2}>
-              {([
-                ['sku', 'SKU *'], ['name', 'Nome *'], ['description', 'Descrição'],
-                ['supplier', 'Fornecedor'], ['origin', 'Origem'], ['unit', 'Unidade'],
-                ['category', 'Categoria'], ['ncm', 'NCM'],
-              ] as [keyof Product, string][]).map(([key, label]) => (
-                <div key={key} style={styles.field}>
-                  <label style={styles.label}>{label}</label>
-                  <input value={String(form[key] ?? '')} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} style={styles.input} />
-                </div>
-              ))}
-              {([['costPrice', 'Preço de Custo'], ['salePrice', 'Preço de Venda'], ['minimumStock', 'Estoque Mínimo']] as [keyof Product, string][]).map(([key, label]) => (
-                <div key={key} style={styles.field}>
-                  <label style={styles.label}>{label}</label>
-                  <input type="number" value={String(form[key] ?? 0)} onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) }))} style={styles.input} />
-                </div>
-              ))}
-            </div>
+        <Modal
+          title={editing ? 'Editar Produto' : 'Novo Produto'}
+          onClose={() => setModal(false)}
+          maxWidth={680}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setModal(false)}>Cancelar</Button>
+              <Button onClick={handleSave}>Salvar</Button>
+            </>
+          }
+        >
+          <div style={styles.grid2}>
+            {([
+              ['sku', 'SKU *'], ['name', 'Nome *'], ['description', 'Descrição'],
+              ['supplier', 'Fornecedor'], ['origin', 'Origem'], ['unit', 'Unidade'],
+              ['category', 'Categoria'], ['ncm', 'NCM'],
+            ] as [keyof Product, string][]).map(([key, label]) => (
+              <FormField key={key} label={label}>
+                <TextInput value={String(form[key] ?? '')} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
+              </FormField>
+            ))}
+            {([['costPrice', 'Preço de Custo'], ['salePrice', 'Preço de Venda'], ['minimumStock', 'Estoque Mínimo']] as [keyof Product, string][]).map(([key, label]) => (
+              <FormField key={key} label={label}>
+                <TextInput type="number" value={String(form[key] ?? 0)} onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) }))} />
+              </FormField>
+            ))}
+          </div>
 
-            {/* Toggle kit */}
-            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <input type="checkbox" id="isKit" checked={!!form.isKit}
-                onChange={e => { setForm(f => ({ ...f, isKit: e.target.checked })); if (!e.target.checked) { setPendingKitItems([]); setRemovedKitItemIds([]); } }}
-                style={{ width: 16, height: 16, accentColor: '#7c3aed', cursor: 'pointer' }} />
-              <label htmlFor="isKit" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
-                Este produto é um <span style={{ color: '#7c3aed' }}>Kit</span>
-                <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 6 }}>
-                  (ao vender no ML, dá baixa nos componentes automaticamente)
-                </span>
-              </label>
-            </div>
+          {/* Toggle kit */}
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input type="checkbox" id="isKit" checked={!!form.isKit}
+              onChange={e => { setForm(f => ({ ...f, isKit: e.target.checked })); if (!e.target.checked) { setPendingKitItems([]); setRemovedKitItemIds([]); } }}
+              style={{ width: 16, height: 16, accentColor: 'var(--color-info)', cursor: 'pointer' }} />
+            <label htmlFor="isKit" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+              Este produto é um <span style={{ color: 'var(--color-info)' }}>Kit</span>
+              <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 6 }}>
+                (ao vender no ML, dá baixa nos componentes automaticamente)
+              </span>
+            </label>
+          </div>
 
-            {/* Seção de componentes inline */}
-            {form.isKit && (
-              <div style={{ marginTop: 16, border: '1.5px solid #e9d5ff', borderRadius: 10, padding: '14px 16px', background: '#faf5ff' }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Componentes do Kit
-                </p>
+          {/* Seção de componentes inline */}
+          {form.isKit && (
+            <div style={styles.kitBox}>
+              <p style={styles.kitBoxTitle}>Componentes do Kit</p>
 
-                {pendingKitItems.length > 0 && (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 14 }}>
-                    <thead>
-                      <tr>
-                        {['Produto', 'SKU', 'Qtd / kit', ''].map(h => (
-                          <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#7c3aed', borderBottom: '1px solid #e9d5ff' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingKitItems.map(ki => (
-                        <tr key={ki.tempId} style={{ borderBottom: '1px solid #f3e8ff' }}>
-                          <td style={{ padding: '7px 8px', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{ki.component?.name ?? `ID ${ki.componentProductId}`}</td>
-                          <td style={{ padding: '7px 8px' }}><span style={styles.sku}>{ki.component?.sku ?? '—'}</span></td>
-                          <td style={{ padding: '7px 8px', textAlign: 'center' }}>
-                            <input type="number" min={1} value={ki.quantity}
-                              onChange={e => setPendingKitItems(prev => prev.map(i => i.tempId === ki.tempId ? { ...i, quantity: Number(e.target.value) } : i))}
-                              style={{ ...styles.input, width: 60, textAlign: 'center', padding: '4px 6px' }} />
-                          </td>
-                          <td style={{ padding: '7px 8px' }}>
-                            <button onClick={() => handleRemoveKitCompFromForm(ki.tempId)} style={{ ...styles.btnDel, padding: '3px 8px', fontSize: 11 }}>✕</button>
-                          </td>
-                        </tr>
+              {pendingKitItems.length > 0 && (
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 14 }}>
+                  <thead>
+                    <tr>
+                      {['Produto', 'SKU', 'Qtd / kit', ''].map(h => (
+                        <th key={h} style={styles.kitTh}>{h}</th>
                       ))}
-                    </tbody>
-                  </table>
-                )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingKitItems.map(ki => (
+                      <tr key={ki.tempId} style={{ borderBottom: '1px solid var(--color-info-bg)' }}>
+                        <td style={{ padding: '7px 8px', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{ki.component?.name ?? `ID ${ki.componentProductId}`}</td>
+                        <td style={{ padding: '7px 8px' }}><Badge tone="primary">{ki.component?.sku ?? '—'}</Badge></td>
+                        <td style={{ padding: '7px 8px', textAlign: 'center' }}>
+                          <TextInput type="number" min={1} value={ki.quantity}
+                            onChange={e => setPendingKitItems(prev => prev.map(i => i.tempId === ki.tempId ? { ...i, quantity: Number(e.target.value) } : i))}
+                            style={{ width: 60, textAlign: 'center', padding: '4px 6px' }} />
+                        </td>
+                        <td style={{ padding: '7px 8px' }}>
+                          <Button variant="danger" size="sm" onClick={() => handleRemoveKitCompFromForm(ki.tempId)} style={{ padding: '3px 8px', fontSize: 11 }}>✕</Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
 
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 160 }}>
-                    <label style={{ ...styles.label, color: '#7c3aed' }}>Produto componente</label>
-                    <select value={newKitComp.componentProductId}
-                      onChange={e => setNewKitComp(c => ({ ...c, componentProductId: e.target.value }))}
-                      style={{ ...styles.input, borderColor: '#e9d5ff' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <FormField label={<span style={{ color: 'var(--color-info)' }}>Produto componente</span>}>
+                    <Select value={newKitComp.componentProductId}
+                      onChange={e => setNewKitComp(c => ({ ...c, componentProductId: e.target.value }))}>
                       <option value="">Selecionar produto...</option>
                       {products.filter(p => !p.isKit && p.active && p.id !== (editing ?? 0) && !pendingKitItems.some(ki => ki.componentProductId === p.id)).map(p => (
                         <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
                       ))}
-                    </select>
-                  </div>
-                  <div style={{ width: 90 }}>
-                    <label style={{ ...styles.label, color: '#7c3aed' }}>Quantidade</label>
-                    <input type="number" min={1} value={newKitComp.quantity}
-                      onChange={e => setNewKitComp(c => ({ ...c, quantity: Number(e.target.value) }))}
-                      style={{ ...styles.input, borderColor: '#e9d5ff' }} />
-                  </div>
-                  <button onClick={handleAddKitCompToForm} style={{ ...styles.btnPrimary, background: '#7c3aed', padding: '8px 14px' }}>+ Adicionar</button>
+                    </Select>
+                  </FormField>
                 </div>
+                <div style={{ width: 90 }}>
+                  <FormField label={<span style={{ color: 'var(--color-info)' }}>Quantidade</span>}>
+                    <TextInput type="number" min={1} value={newKitComp.quantity}
+                      onChange={e => setNewKitComp(c => ({ ...c, quantity: Number(e.target.value) }))} />
+                  </FormField>
+                </div>
+                <Button onClick={handleAddKitCompToForm} style={{ background: 'var(--color-info)' }}>+ Adicionar</Button>
               </div>
-            )}
+            </div>
+          )}
+        </Modal>
+      )}
 
-            <div style={styles.modalFooter}>
-              <button onClick={() => setModal(false)} style={styles.btnCancel}>Cancelar</button>
-              <button onClick={handleSave} style={styles.btnPrimary}>Salvar</button>
-            </div>
-          </div>
-        </div>
-      )}
       {adjModal && adjProduct && (
-        <div style={styles.overlay} className="modal-overlay">
-          <div style={{ ...styles.modal, maxWidth: 420 }} className="modal-box">
-            <h2 style={styles.modalTitle}>Ajustar Estoque — {adjProduct.name}</h2>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              Estoque atual: <strong style={{ color: 'var(--text-primary)' }}>{adjProduct.currentStock} {adjProduct.unit}</strong>
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={styles.field}>
-                <label style={styles.label}>Tipo de Movimento</label>
-                <select value={adj.type} onChange={e => setAdj(a => ({ ...a, type: e.target.value as MovementType }))} style={styles.input}>
-                  <option value="ENTRY">Entrada</option>
-                  <option value="EXIT">Saída</option>
-                  <option value="ADJUSTMENT">Ajuste (definir total)</option>
-                </select>
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>{adj.type === 'ADJUSTMENT' ? 'Novo total em estoque' : 'Quantidade'}</label>
-                <input type="number" min={0} value={adj.quantity} onChange={e => setAdj(a => ({ ...a, quantity: Number(e.target.value) }))} style={styles.input} />
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>Motivo (opcional)</label>
-                <input value={adj.reason} onChange={e => setAdj(a => ({ ...a, reason: e.target.value }))} placeholder="Ex: Inventário, devolução..." style={styles.input} />
-              </div>
-            </div>
-            <div style={styles.modalFooter}>
-              <button onClick={() => setAdjModal(false)} style={styles.btnCancel}>Cancelar</button>
-              <button onClick={handleAdj} style={styles.btnPrimary}>Salvar</button>
-            </div>
+        <Modal
+          title={`Ajustar Estoque — ${adjProduct.name}`}
+          onClose={() => setAdjModal(false)}
+          maxWidth={420}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setAdjModal(false)}>Cancelar</Button>
+              <Button onClick={handleAdj}>Salvar</Button>
+            </>
+          }
+        >
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+            Estoque atual: <strong style={{ color: 'var(--text-primary)' }}>{adjProduct.currentStock} {adjProduct.unit}</strong>
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <FormField label="Tipo de Movimento">
+              <Select value={adj.type} onChange={e => setAdj(a => ({ ...a, type: e.target.value as MovementType }))}>
+                <option value="ENTRY">Entrada</option>
+                <option value="EXIT">Saída</option>
+                <option value="ADJUSTMENT">Ajuste (definir total)</option>
+              </Select>
+            </FormField>
+            <FormField label={adj.type === 'ADJUSTMENT' ? 'Novo total em estoque' : 'Quantidade'}>
+              <TextInput type="number" min={0} value={adj.quantity} onChange={e => setAdj(a => ({ ...a, quantity: Number(e.target.value) }))} />
+            </FormField>
+            <FormField label="Motivo (opcional)">
+              <TextInput value={adj.reason} onChange={e => setAdj(a => ({ ...a, reason: e.target.value }))} placeholder="Ex: Inventário, devolução..." />
+            </FormField>
           </div>
-        </div>
+        </Modal>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Desativar produto?"
+        description={`Tem certeza que deseja desativar "${deleteTarget?.name}"? Ele deixará de aparecer nas listagens ativas.`}
+        confirmLabel="Desativar"
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' },
   statRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 },
-  statCard: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '14px 10px', background: 'var(--bg-card)', border: '2px solid transparent', borderRadius: 12, cursor: 'pointer', transition: 'box-shadow .15s, border-color .15s', boxShadow: 'var(--shadow)' },
   toolbar: { marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 },
-  searchInput: { padding: '9px 14px', border: '1.5px solid var(--border)', borderRadius: 8, flex: 1, maxWidth: 340, fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-body)' },
-  clearFilter: { padding: '7px 12px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' },
-  tableWrap: { background: 'var(--bg-card)', borderRadius: 12, boxShadow: 'var(--shadow)', overflowY: 'auto', overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', minHeight: 200 },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  thead: { background: 'var(--bg-thead)' },
-  th: { padding: '12px 14px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg-thead)', zIndex: 1 },
   tr: { borderBottom: '1px solid var(--border-row)' },
-  td: { padding: '11px 14px', fontSize: 13, color: 'var(--text-body)', verticalAlign: 'middle' },
-  sku: { background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 700 },
-  kitTag: { background: '#f3e8ff', color: '#7c3aed', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const },
-  categoryTag: { background: 'var(--bg-thead)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 500 },
   subText: { fontSize: 11, color: 'var(--text-secondary)' },
-  stockBadge: { padding: '3px 8px', borderRadius: 20, fontSize: 12, fontWeight: 600 },
   minStock: { fontSize: 11, color: 'var(--text-secondary)' },
   priceRow: { fontSize: 12, color: 'var(--text-body)', display: 'flex', gap: 4, alignItems: 'center' },
   priceLabel: { fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', minWidth: 34 },
-  btnPrimary: { padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
-  btnEdit: { padding: '5px 10px', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
-  btnStock: { padding: '5px 10px', background: '#f0fdf4', color: '#16a34a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
-  btnKit: { padding: '5px 10px', background: '#f3e8ff', color: '#7c3aed', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
-  btnDel: { padding: '5px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
-  empty: { padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' },
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 680, maxHeight: '90dvh', overflowY: 'auto', boxSizing: 'border-box' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20 },
   grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
-  field: { display: 'flex', flexDirection: 'column', gap: 4 },
-  label: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' },
-  input: { padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-body)' },
-  modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 },
-  btnCancel: { padding: '9px 18px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
+  kitBox: { marginTop: 16, border: '1.5px solid var(--color-info-bg)', borderRadius: 10, padding: '14px 16px', background: 'var(--color-info-bg)' },
+  kitBoxTitle: { fontSize: 12, fontWeight: 700, color: 'var(--color-info)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  kitTh: { padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--color-info)', borderBottom: '1px solid var(--color-info-bg)' },
 };

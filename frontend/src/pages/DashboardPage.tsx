@@ -2,10 +2,20 @@ import { useEffect, useState } from 'react';
 import { reportsService } from '../services/reports.service';
 import type { DashboardData } from '../services/reports.service';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { PageHeader, StatCard, ChartCard, Badge, EmptyState } from '../components/ui';
+import type { BadgeTone } from '../components/ui';
+import { ORDER_STATUS_LABEL } from '../utils/orderStatus';
 
-const statusLabel: Record<string, string> = {
-  PENDING: 'Pendente', CONFIRMED: 'Confirmado', IN_TRANSIT: 'Em Trânsito',
-  CUSTOMS: 'Desembaraço', RECEIVED: 'Recebido', CANCELLED: 'Cancelado',
+const movementTone: Record<string, BadgeTone> = {
+  ENTRY: 'success',
+  EXIT: 'danger',
+  ADJUSTMENT: 'warning',
+};
+
+const movementLabel: Record<string, string> = {
+  ENTRY: '▲ Entrada',
+  EXIT: '▼ Saída',
+  ADJUSTMENT: '⇄ Ajuste',
 };
 
 export default function DashboardPage() {
@@ -21,76 +31,52 @@ export default function DashboardPage() {
   }, []);
 
   const cards = data ? [
-    { label: 'Produtos Ativos', value: data.totalProducts, color: '#2563eb', icon: '📦' },
-    { label: 'Estoque Crítico', value: data.lowStockProducts, color: '#dc2626', icon: '⚠️' },
-    { label: 'Pedidos em Trânsito', value: data.ordersInTransit, color: '#d97706', icon: '🚢' },
-    { label: 'Em Desembaraço', value: data.ordersInCustoms, color: '#7c3aed', icon: '🛃' },
+    { label: 'Produtos Ativos', value: data.totalProducts, color: 'var(--color-primary)', icon: '📦' },
+    { label: 'Estoque Crítico', value: data.lowStockProducts, color: 'var(--color-danger)', icon: '⚠️' },
+    { label: 'Pedidos em Trânsito', value: data.ordersInTransit, color: 'var(--color-warning)', icon: '🚢' },
+    { label: 'Em Desembaraço', value: data.ordersInCustoms, color: 'var(--color-info)', icon: '🛃' },
   ] : [];
 
-  const chartData = orderStats.map(s => ({ name: statusLabel[s.status] || s.status, total: Number(s.count) }));
+  const chartData = orderStats.map(s => ({ name: ORDER_STATUS_LABEL[s.status] || s.status, total: Number(s.count) }));
 
   return (
     <div>
-      <h1 style={styles.pageTitle}>Dashboard</h1>
-      {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>Carregando...</div>}
-      <div style={styles.cards}>
+      <PageHeader title="Dashboard" />
+
+      {loading && <EmptyState>Carregando...</EmptyState>}
+
+      <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 }}>
         {cards.map((c) => (
-          <div key={c.label} style={{ ...styles.card, borderTop: `4px solid ${c.color}` }}>
-            <div style={styles.cardIcon}>{c.icon}</div>
-            <div style={{ ...styles.cardValue, color: c.color }}>{c.value}</div>
-            <div style={styles.cardLabel}>{c.label}</div>
-          </div>
+          <StatCard key={c.label} icon={c.icon} label={c.label} value={c.value} color={c.color} />
         ))}
       </div>
 
-      <div style={styles.row} className="dashboard-row">
-        <div style={styles.chartBox}>
-          <h2 style={styles.sectionTitle}>Pedidos por Status</h2>
+      <div className="dashboard-row" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20 }}>
+        <ChartCard title="Pedidos por Status">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
               <YAxis allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="total" fill="#2563eb" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="total" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        <div style={styles.movementsBox}>
-          <h2 style={styles.sectionTitle}>Últimas Movimentações</h2>
-          <div style={styles.movList}>
+        <ChartCard title="Últimas Movimentações">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {(data?.recentMovements || []).map((m: any) => (
-              <div key={m.id} style={styles.movItem}>
-                <span style={{ ...styles.badge, background: m.type === 'ENTRY' ? '#dcfce7' : m.type === 'EXIT' ? '#fee2e2' : '#fef9c3', color: m.type === 'ENTRY' ? '#16a34a' : m.type === 'EXIT' ? '#dc2626' : '#ca8a04' }}>
-                  {m.type === 'ENTRY' ? '▲ Entrada' : m.type === 'EXIT' ? '▼ Saída' : '⇄ Ajuste'}
-                </span>
-                <span style={styles.movProduct}>{m.product?.name || '—'}</span>
-                <span style={styles.movQty}>{m.quantity} un</span>
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                <Badge tone={movementTone[m.type] || 'neutral'}>{movementLabel[m.type] || m.type}</Badge>
+                <span style={{ flex: 1, color: 'var(--text-body)', fontWeight: 500 }}>{m.product?.name || '—'}</span>
+                <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{m.quantity} un</span>
               </div>
             ))}
-            {(!data?.recentMovements?.length) && <p style={{ color: '#94a3b8', fontSize: 13 }}>Nenhuma movimentação ainda.</p>}
+            {(!data?.recentMovements?.length) && <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Nenhuma movimentação ainda.</p>}
           </div>
-        </div>
+        </ChartCard>
       </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  pageTitle: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 24 },
-  cards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 },
-  card: { background: 'var(--bg-card)', borderRadius: 12, padding: '20px 24px', boxShadow: 'var(--shadow)' },
-  cardIcon: { fontSize: 28, marginBottom: 8 },
-  cardValue: { fontSize: 32, fontWeight: 800, lineHeight: 1 },
-  cardLabel: { fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, fontWeight: 500 },
-  row: { display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20 },
-  chartBox: { background: 'var(--bg-card)', borderRadius: 12, padding: '20px 24px', boxShadow: 'var(--shadow)' },
-  movementsBox: { background: 'var(--bg-card)', borderRadius: 12, padding: '20px 24px', boxShadow: 'var(--shadow)' },
-  sectionTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 },
-  movList: { display: 'flex', flexDirection: 'column', gap: 8 },
-  movItem: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 },
-  badge: { padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' },
-  movProduct: { flex: 1, color: 'var(--text-body)', fontWeight: 500 },
-  movQty: { color: 'var(--text-secondary)', fontWeight: 600 },
-};

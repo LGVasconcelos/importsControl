@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Query, Param, ParseIntPipe, UseGuards, Res, Body, HttpCode, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Query, Param, ParseIntPipe, UseGuards, Res, Body, Headers, HttpCode, HttpException, HttpStatus, Logger, ForbiddenException } from '@nestjs/common';
 import type { Response } from 'express';
 import { MercadoLivreService } from './mercadolivre.service';
 import { StockService } from '../stock/stock.service';
@@ -6,6 +6,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('mercadolivre')
 export class MercadoLivreController {
+  private readonly logger = new Logger(MercadoLivreController.name);
+
   constructor(
     private readonly mlService: MercadoLivreService,
     private readonly stockService: StockService,
@@ -32,7 +34,9 @@ export class MercadoLivreController {
   @Post('webhook')
   @HttpCode(200)
   async webhook(@Body() body: any) {
-    await this.mlService.handleWebhook(body).catch(() => {});
+    await this.mlService.handleWebhook(body).catch(e => {
+      this.logger.error(`Erro no webhook ML: ${e?.message}`, e?.stack);
+    });
     return { ok: true };
   }
 
@@ -120,6 +124,30 @@ export class MercadoLivreController {
         { message: e?.message || 'Erro ao processar vendas pendentes' },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  /**
+   * Endpoint de manutenção automática, chamado pelo Vercel Cron (não usa JwtAuthGuard —
+   * autenticado via header x-cron-secret). Renova o token proativamente (via processPendingSales,
+   * que já chama getValidToken internamente) e reprocessa vendas pagas como rede de segurança
+   * caso algum webhook tenha falhado ou não chegado.
+   */
+  @Post('cron/tick')
+  @HttpCode(200)
+  async cronTick(@Headers('x-cron-secret') secret: string) {
+    const expected = process.env.CRON_SECRET;
+    if (!expected || secret !== expected) {
+      throw new ForbiddenException();
+    }
+    try {
+      const status = await this.mlService.getStatus();
+      if (!status.connected) return { ok: true, skipped: 'not_connected' };
+      const result = await this.mlService.processPendingSales();
+      return { ok: true, ...result };
+    } catch (e: any) {
+      this.logger.error(`Erro no cron tick ML: ${e?.message}`, e?.stack);
+      return { ok: false, message: e?.message || 'Erro desconhecido' };
     }
   }
 

@@ -106,4 +106,13 @@ export class ProductsService {
   findKitItemsByKitId(kitProductId: number): Promise<KitItem[]> {
     return this.kitItemRepo.find({ where: { kitProductId } });
   }
+
+  /** Recalcula o estoque de todos os kits que usam este produto como componente (uso interno: StockService) */
+  async recalcKitsForComponent(componentProductId: number): Promise<void> {
+    const kitItems = await this.kitItemRepo.find({ where: { componentProductId } });
+    const kitProductIds = [...new Set(kitItems.map(i => i.kitProductId))];
+    for (const kitProductId of kitProductIds) {
+      await this.recalcKitStock(kitProductId);
+    }
+  }
 }

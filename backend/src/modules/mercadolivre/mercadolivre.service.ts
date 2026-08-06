@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
@@ -12,8 +12,13 @@ const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET || 'VeP2f3VTsVxegaloJc9zeH
 const ML_REDIRECT_URI = process.env.ML_REDIRECT_URI || 'https://imports-control.vercel.app/api/mercadolivre/callback';
 const ML_API = 'https://api.mercadolibre.com';
 
+// Erros do ML que indicam refresh_token realmente inválido/revogado (não transitórios)
+const ML_AUTH_INVALID_ERRORS = ['invalid_grant', 'invalid_token', 'invalid_client'];
+
 @Injectable()
 export class MercadoLivreService {
+  private readonly logger = new Logger(MercadoLivreService.name);
+
   constructor(
     @InjectRepository(MlToken)
     private readonly tokenRepo: Repository<MlToken>,
@@ -115,10 +120,10 @@ export class MercadoLivreService {
 
     // Tenta renovar
     if (!token.refreshToken) {
-      await this.tokenRepo.clear();
       throw new Error('Sessão expirada — reconecte o Mercado Livre');
     }
 
+    const staleRefreshToken = token.refreshToken;
     const res = await fetch(`${ML_API}/oauth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
@@ -126,22 +131,53 @@ export class MercadoLivreService {
         grant_type: 'refresh_token',
         client_id: ML_CLIENT_ID,
         client_secret: ML_CLIENT_SECRET,
-        refresh_token: token.refreshToken,
+        refresh_token: staleRefreshToken,
       }),
     });
     const data = await res.json() as any;
+
     if (!data.access_token) {
-      // Refresh token inválido ou expirado — limpa sessão para forçar reconexão
+      const mlErrorCode = data.error || '';
       const mlError = data.error_description || data.error || data.message || JSON.stringify(data);
-      await this.tokenRepo.clear();
-      throw new Error(`Sessão ML expirada — reconecte o Mercado Livre (${mlError})`);
+      this.logger.warn(`Falha ao renovar token ML: ${mlError}`);
+
+      // Verifica se outra requisição concorrente já renovou este token com sucesso
+      // enquanto esta tentativa estava em andamento — nesse caso, usa o token novo
+      // em vez de tratar como falha (o refresh_token do ML é de uso único).
+      const current = await this.tokenRepo.findOne({ where: { id: token.id } });
+      if (current && current.refreshToken !== staleRefreshToken && current.accessToken) {
+        this.logger.log('Token ML já havia sido renovado por outra requisição concorrente — usando o token atualizado.');
+        return current.accessToken;
+      }
+
+      // Só apaga a conexão quando o ML confirma que o refresh_token está
+      // genuinamente inválido/revogado. Erros transitórios (rede, 5xx, timeout)
+      // não devem derrubar a conexão — a próxima tentativa tenta de novo.
+      if (ML_AUTH_INVALID_ERRORS.includes(mlErrorCode)) {
+        await this.tokenRepo.delete({ id: token.id, refreshToken: staleRefreshToken });
+        throw new Error(`Sessão ML expirada — reconecte o Mercado Livre (${mlError})`);
+      }
+
+      throw new Error(`Erro temporário ao renovar token ML — tentando novamente na próxima chamada (${mlError})`);
     }
 
-    token.accessToken = data.access_token;
-    token.refreshToken = data.refresh_token;
-    token.expiresAt = Date.now() + data.expires_in * 1000;
-    await this.tokenRepo.save(token);
-    return token.accessToken;
+    // Grava o token novo apenas se o refreshToken no banco ainda for o que usamos
+    // (compare-and-swap). Se outra requisição já renovou primeiro, usa o token dela.
+    const updateResult = await this.tokenRepo.update(
+      { id: token.id, refreshToken: staleRefreshToken },
+      {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt: Date.now() + data.expires_in * 1000,
+      },
+    );
+
+    if (updateResult.affected === 0) {
+      const current = await this.tokenRepo.findOne({ where: { id: token.id } });
+      if (current?.accessToken) return current.accessToken;
+    }
+
+    return data.access_token;
   }
 
   // Faz o PUT correto dependendo se é anúncio simples ou com variação
@@ -383,7 +419,10 @@ export class MercadoLivreService {
     const orderId = String(body.resource || body.user_id || '').split('/').pop();
     if (!orderId || orderId === '0') return;
 
-    const accessToken = await this.getValidToken().catch(() => null);
+    const accessToken = await this.getValidToken().catch(e => {
+      this.logger.error(`Webhook: falha ao obter token válido para pedido #${orderId}: ${e?.message}`);
+      return null;
+    });
     if (!accessToken) return;
 
     const orderRes = await fetch(`${ML_API}/orders/${orderId}`, {
@@ -392,7 +431,12 @@ export class MercadoLivreService {
     const mlOrder = await orderRes.json() as any;
     if (mlOrder.status !== 'paid') return;
 
-    await this.processOrder(mlOrder, accessToken);
+    try {
+      await this.processOrder(mlOrder, accessToken);
+    } catch (e: any) {
+      this.logger.error(`Webhook: falha ao baixar estoque do pedido #${orderId}: ${e?.message}`, e?.stack);
+      throw e;
+    }
   }
 
   /** Processa um pedido pago: baixa estoque com idempotência */

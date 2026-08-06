@@ -87,5 +87,5 @@ const styles: Record<string, React.CSSProperties> = {
   userInfo: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
   userName: { color: '#f1f5f9', fontSize: 13, fontWeight: 600 },
   userEmail: { color: '#64748b', fontSize: 11 },
-  logoutBtn: { width: '100%', padding: '8px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
+  logoutBtn: { width: '100%', padding: '8px', background: 'var(--color-danger)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
 };

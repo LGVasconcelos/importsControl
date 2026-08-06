@@ -10,5 +10,8 @@
       "entrypoint": "api/index.ts",
       "routePrefix": "/api"
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/mercadolivre/cron/tick", "schedule": "*/15 * * * *" }
+  ]
 }

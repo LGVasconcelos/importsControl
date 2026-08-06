@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { StockMovement, MovementType } from './stock-movement.entity';
 import { Product } from '../products/product.entity';
 import { CreateMovementDto } from './dto/movement.dto';
+import { ProductsService } from '../products/products.service';
 
 @Injectable()
 export class StockService {
@@ -12,6 +13,7 @@ export class StockService {
     private readonly movementRepo: Repository<StockMovement>,
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
+    private readonly productsService: ProductsService,
   ) {}
 
   async createMovement(dto: CreateMovementDto, userId: number): Promise<StockMovement> {
@@ -41,7 +43,9 @@ export class StockService {
       userId,
     });
 
-    return this.movementRepo.save(movement);
+    const saved = await this.movementRepo.save(movement);
+    await this.productsService.recalcKitsForComponent(dto.productId);
+    return saved;
   }
 
   findAll(productId?: number): Promise<StockMovement[]> {
@@ -66,6 +70,7 @@ export class StockService {
       stockAfter,
       userId: null,
     }));
+    await this.productsService.recalcKitsForComponent(dto.productId);
   }
 
   findByProduct(productId: number): Promise<StockMovement[]> {
@@ -88,6 +93,7 @@ export class StockService {
     if (!mlMovements.length) return { reverted: 0, details: ['Nenhum movimento ML encontrado'] };
 
     const details: string[] = [];
+    const affectedProductIds = new Set<number>();
     for (const mv of mlMovements) {
       // Reverte: saídas viram entradas (devolve estoque)
       const product = await this.productRepo.findOne({ where: { id: mv.productId } });
@@ -95,8 +101,13 @@ export class StockService {
       if (mv.type === MovementType.EXIT) {
         await this.productRepo.update(mv.productId, { currentStock: product.currentStock + mv.quantity });
         details.push(`+${mv.quantity} em produto #${mv.productId} (${mv.orderReference})`);
+        affectedProductIds.add(mv.productId);
       }
       await this.movementRepo.delete(mv.id);
+    }
+
+    for (const productId of affectedProductIds) {
+      await this.productsService.recalcKitsForComponent(productId);
     }
 
     return { reverted: mlMovements.length, details };

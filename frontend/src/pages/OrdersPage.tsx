@@ -4,17 +4,13 @@ import type { Order, OrderStatus, OrderItem } from '../services/orders.service';
 import { productsService } from '../services/products.service';
 import type { Product } from '../services/products.service';
 import toast from 'react-hot-toast';
+import {
+  Button, Badge, PageHeader, Modal, TableWrap, Th, Td, Chip,
+  FormField, TextInput, Select, Textarea, ConfirmDialog,
+} from '../components/ui';
+import { ORDER_STATUS_LABEL, ORDER_STATUS_COLOR } from '../utils/orderStatus';
 
 const CURRENCIES = ['USD', 'EUR', 'CNY', 'GBP', 'JPY', 'BRL'];
-
-const statusLabel: Record<OrderStatus, string> = {
-  PENDING: 'Pendente', CONFIRMED: 'Confirmado', IN_TRANSIT: 'Em Trânsito',
-  CUSTOMS: 'Desembaraço', RECEIVED: 'Recebido', CANCELLED: 'Cancelado',
-};
-const statusColor: Record<OrderStatus, string> = {
-  PENDING: '#64748b', CONFIRMED: '#2563eb', IN_TRANSIT: '#d97706',
-  CUSTOMS: '#7c3aed', RECEIVED: '#16a34a', CANCELLED: '#dc2626',
-};
 
 const toDateInput = (v?: string) => (v ? v.split('T')[0] : '');
 
@@ -36,6 +32,7 @@ export default function OrdersPage() {
   const [items, setItems] = useState<Omit<OrderItem, 'id'>[]>([]);
   const [itemDraft, setItemDraft] = useState({ productId: 0, quantity: 1, unitPrice: 0 });
   const [fetchingRate, setFetchingRate] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const fetchExchangeRate = async (currency: string) => {
     if (currency === 'BRL') { setForm(f => ({ ...f, currency, exchangeRate: 1 })); return; }
@@ -138,10 +135,13 @@ export default function OrdersPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Remover este pedido?')) return;
-    await ordersService.remove(id);
+  const requestDelete = (id: number) => setConfirmDeleteId(id);
+
+  const handleDelete = async () => {
+    if (confirmDeleteId == null) return;
+    await ordersService.remove(confirmDeleteId);
     toast.success('Pedido removido');
+    setConfirmDeleteId(null);
     load();
   };
 
@@ -159,233 +159,239 @@ export default function OrdersPage() {
 
   return (
     <div>
-      <div style={styles.header} className="page-header">
-        <h1 style={styles.title}>Pedidos de Importação</h1>
-        <div className="btn-group" style={{ display: 'flex', gap: 8 }}>
-          <button onClick={async () => { try { const r = await ordersService.syncCosts(); toast.success(`Custos sincronizados: ${r.synced} criados, ${r.skipped} já existiam`); } catch { toast.error('Erro ao sincronizar custos'); } }} style={styles.btnSync}>Sincronizar Custos</button>
-          <button onClick={async () => { try { const r = await ordersService.fixTracking(); toast.success(`Rastreios corrigidos: ${r.fixed}`); load(); } catch { toast.error('Erro ao corrigir rastreios'); } }} style={styles.btnSync}>Corrigir Rastreios</button>
-          <button onClick={openCreate} style={styles.btnPrimary}>+ Novo Pedido</button>
-        </div>
-      </div>
+      <PageHeader
+        title="Pedidos de Importação"
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={async () => { try { const r = await ordersService.syncCosts(); toast.success(`Custos sincronizados: ${r.synced} criados, ${r.skipped} já existiam`); } catch { toast.error('Erro ao sincronizar custos'); } }}
+            >
+              Sincronizar Custos
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={async () => { try { const r = await ordersService.fixTracking(); toast.success(`Rastreios corrigidos: ${r.fixed}`); load(); } catch { toast.error('Erro ao corrigir rastreios'); } }}
+            >
+              Corrigir Rastreios
+            </Button>
+            <Button onClick={openCreate}>+ Novo Pedido</Button>
+          </>
+        }
+      />
       <div style={styles.toolbar}>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={styles.filterSelect}>
+        <Select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ maxWidth: 220 }}>
           <option value="">Todos os status</option>
-          {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
+          {Object.entries(ORDER_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </Select>
       </div>
-      <div style={styles.tableWrap} className="responsive-table-wrap">
-        {loading ? <div style={styles.loading}>Carregando...</div> : (
-        <table style={styles.table} className="responsive-table">
-          <thead>
-            <tr style={styles.thead}>
-              {['Nº Pedido', 'Fornecedor', 'Origem', 'Status', 'Data Pedido', 'Prev. Chegada', 'Valor Total', 'Produtos', 'Rastreio', 'Ações'].map(h => (
-                <th key={h} style={styles.th}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(o => (
-              <tr key={o.id} style={styles.tr}>
-                <td style={styles.td} data-label="Nº Pedido"><span style={styles.sku}>{o.orderNumber}</span></td>
-                <td style={styles.td} data-label="Fornecedor">{o.supplier}</td>
-                <td style={styles.td} data-label="Origem">{o.origin || '—'}</td>
-                <td style={styles.td} data-label="Status">
-                  <select
-                    value={o.status}
-                    onChange={e => handleStatusChange(o.id, e.target.value as OrderStatus)}
-                    style={{ ...styles.statusSelect, color: statusColor[o.status], borderColor: statusColor[o.status] + '80', background: statusColor[o.status] + '18' }}
-                  >
-                    {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </td>
-                <td style={styles.td} data-label="Data Pedido">{toDateInput(o.orderDate) || '—'}</td>
-                <td style={styles.td} data-label="Prev. Chegada">{toDateInput(o.expectedArrival) || '—'}</td>
-                <td style={styles.td} data-label="Valor">{o.currency} {Number(o.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td style={styles.td} data-label="Produtos">
-                  {o.items?.length
-                    ? <span style={styles.itemsBadge}>{o.items.length} {o.items.length === 1 ? 'produto' : 'produtos'}</span>
-                    : <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>—</span>}
-                </td>
-                <td style={styles.td} data-label="Rastreio">
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {parseCodes(o.trackingCode).length > 0
-                      ? parseCodes(o.trackingCode).map(c => (
-                          <span key={c} style={styles.trackChip}>{c}</span>
-                        ))
-                      : <span>—</span>}
-                  </div>
-                </td>
-                <td style={styles.td} data-label="">
-                  <button onClick={() => openEdit(o)} style={styles.btnEdit}>Editar</button>
-                  <button onClick={() => handleDelete(o.id)} style={styles.btnDel}>Remover</button>
-                </td>
-              </tr>
+
+      <TableWrap maxHeight="calc(100vh - 240px)">
+        <thead>
+          <tr>
+            {['Nº Pedido', 'Fornecedor', 'Origem', 'Status', 'Data Pedido', 'Prev. Chegada', 'Valor Total', 'Produtos', 'Rastreio', 'Ações'].map(h => (
+              <Th key={h}>{h}</Th>
             ))}
-          </tbody>
-        </table>
-        )}
-        {!loading && filtered.length === 0 && <div style={styles.empty}>Nenhum pedido encontrado.</div>}
-      </div>
+          </tr>
+        </thead>
+        <tbody>
+          {loading ? (
+            <tr><td colSpan={10} style={styles.loading}>Carregando...</td></tr>
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={10} style={styles.loading}>Nenhum pedido encontrado.</td></tr>
+          ) : filtered.map(o => (
+            <tr key={o.id}>
+              <Td data-label="Nº Pedido"><Badge tone="primary">{o.orderNumber}</Badge></Td>
+              <Td data-label="Fornecedor">{o.supplier}</Td>
+              <Td data-label="Origem">{o.origin || '—'}</Td>
+              <Td data-label="Status">
+                <select
+                  value={o.status}
+                  onChange={e => handleStatusChange(o.id, e.target.value as OrderStatus)}
+                  style={{ ...styles.statusSelect, color: ORDER_STATUS_COLOR[o.status], borderColor: ORDER_STATUS_COLOR[o.status] + '80', background: ORDER_STATUS_COLOR[o.status] + '18' }}
+                >
+                  {Object.entries(ORDER_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </Td>
+              <Td data-label="Data Pedido">{toDateInput(o.orderDate) || '—'}</Td>
+              <Td data-label="Prev. Chegada">{toDateInput(o.expectedArrival) || '—'}</Td>
+              <Td data-label="Valor">{o.currency} {Number(o.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Td>
+              <Td data-label="Produtos">
+                {o.items?.length
+                  ? <Badge tone="info">{o.items.length} {o.items.length === 1 ? 'produto' : 'produtos'}</Badge>
+                  : <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>—</span>}
+              </Td>
+              <Td data-label="Rastreio">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {parseCodes(o.trackingCode).length > 0
+                    ? parseCodes(o.trackingCode).map(c => <Chip key={c}>{c}</Chip>)
+                    : <span>—</span>}
+                </div>
+              </Td>
+              <Td data-label="">
+                <Button size="sm" variant="secondary" onClick={() => openEdit(o)} style={{ marginRight: 6 }}>Editar</Button>
+                <Button size="sm" variant="danger" onClick={() => requestDelete(o.id)}>Remover</Button>
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </TableWrap>
 
       {modal && (
-        <div style={styles.overlay} className="modal-overlay">
-          <div style={styles.modal} className="modal-box">
-            <h2 style={styles.modalTitle}>{editing ? 'Editar Pedido' : 'Novo Pedido'}</h2>
-            <div style={styles.grid2} className="modal-grid-2">
-              <div style={styles.field}><label style={styles.label}>Nº do Pedido *</label><input value={form.orderNumber || ''} onChange={e => setForm(f => ({ ...f, orderNumber: e.target.value }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Fornecedor *</label><input value={form.supplier || ''} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Origem</label><input value={form.origin || ''} onChange={e => setForm(f => ({ ...f, origin: e.target.value }))} style={styles.input} /></div>
-              <div style={styles.field}>
-                <label style={styles.label}>Status</label>
-                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as OrderStatus }))} style={styles.input}>
-                  {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </div>
-              <div style={styles.field}><label style={styles.label}>Data do Pedido</label><input type="date" value={form.orderDate || ''} onChange={e => setForm(f => ({ ...f, orderDate: e.target.value }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Previsão de Chegada</label><input type="date" value={form.expectedArrival || ''} onChange={e => setForm(f => ({ ...f, expectedArrival: e.target.value }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Data Chegada Real</label><input type="date" value={form.actualArrival || ''} onChange={e => setForm(f => ({ ...f, actualArrival: e.target.value }))} style={styles.input} /></div>
-              <div style={styles.field}><label style={styles.label}>Valor Total</label><input type="number" value={form.totalValue || 0} onChange={e => setForm(f => ({ ...f, totalValue: Number(e.target.value) }))} style={styles.input} /></div>
-              <div style={styles.field}>
-                <label style={styles.label}>Moeda</label>
-                <select value={form.currency || 'USD'} onChange={e => fetchExchangeRate(e.target.value)} style={styles.input}>
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>Taxa de Câmbio {fetchingRate && <span style={{ fontWeight: 400, color: '#2563eb' }}>(buscando...)</span>}</label>
-                <input type="number" step="0.0001" value={form.exchangeRate || 1} onChange={e => setForm(f => ({ ...f, exchangeRate: Number(e.target.value) }))} style={styles.input} />
-              </div>
-              <div style={styles.field}><label style={styles.label}>Nº da Invoice</label><input value={form.invoiceNumber || ''} onChange={e => setForm(f => ({ ...f, invoiceNumber: e.target.value }))} style={styles.input} /></div>
-            </div>
-            <div style={styles.field}>
-              <label style={styles.label}>Códigos de Rastreio</label>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <input
-                  value={trackingInput}
-                  onChange={e => setTrackingInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTrackingCode(); } }}
-                  placeholder="Digite o código e pressione Enter ou clique em Adicionar"
-                  style={{ ...styles.input, flex: 1 }}
-                />
-                <button type="button" onClick={addTrackingCode} style={styles.btnAdd}>Adicionar</button>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {parseCodes(form.trackingCode).map(c => (
-                  <span key={c} style={styles.trackChipEdit}>
-                    {c}
-                    <button type="button" onClick={() => removeTrackingCode(c)} style={styles.trackRemove}>×</button>
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div style={styles.field}><label style={styles.label}>Observações</label><textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} style={{ ...styles.input, height: 70, resize: 'vertical' }} /></div>
-
-            {/* Itens do Pedido */}
-            <div style={{ marginTop: 20 }}>
-              <div style={styles.sectionDivider}>Itens do Pedido</div>
-              <div className="modal-item-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
-                <div style={styles.field}>
-                  <label style={styles.label}>Produto *</label>
-                  <select value={itemDraft.productId} onChange={e => { const p = products.find(x => x.id === Number(e.target.value)); setItemDraft(d => ({ ...d, productId: Number(e.target.value), unitPrice: p ? Number(p.costPrice) : d.unitPrice })); }} style={styles.input}>
-                    <option value={0}>Selecione...</option>
-                    {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
-                  </select>
-                </div>
-                <div style={styles.field}>
-                  <label style={styles.label}>Quantidade</label>
-                  <input type="number" min={0.001} step={0.001} value={itemDraft.quantity} onChange={e => setItemDraft(d => ({ ...d, quantity: Number(e.target.value) }))} style={styles.input} />
-                </div>
-                <div style={styles.field}>
-                  <label style={styles.label}>Preço Unit.</label>
-                  <input type="number" min={0} step={0.01} value={itemDraft.unitPrice} onChange={e => setItemDraft(d => ({ ...d, unitPrice: Number(e.target.value) }))} style={styles.input} />
-                </div>
-                <button type="button" onClick={addItem} className="modal-item-add-btn" style={{ ...styles.btnAdd, alignSelf: 'flex-end' }}>+ Adicionar</button>
-              </div>
-              {items.length > 0 && (
-                <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--border)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 4 }}>
-                  <thead>
-                    <tr style={{ background: 'var(--bg-thead)' }}>
-                      <th style={styles.itemTh}>Produto</th>
-                      <th style={{ ...styles.itemTh, textAlign: 'right' }}>Qtd</th>
-                      <th style={{ ...styles.itemTh, textAlign: 'right' }}>Preço Unit.</th>
-                      <th style={{ ...styles.itemTh, textAlign: 'right' }}>Total</th>
-                      <th style={styles.itemTh}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item, i) => {
-                      const prod = products.find(p => p.id === item.productId);
-                      return (
-                        <tr key={i} style={{ borderBottom: '1px solid var(--border-row)' }}>
-                          <td style={styles.itemTd}>{prod ? `${prod.name} (${prod.sku})` : `ID ${item.productId}`}</td>
-                          <td style={{ ...styles.itemTd, textAlign: 'right' }}>{Number(item.quantity).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}</td>
-                          <td style={{ ...styles.itemTd, textAlign: 'right' }}>{Number(item.unitPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                          <td style={{ ...styles.itemTd, textAlign: 'right', fontWeight: 700 }}>{(Number(item.quantity) * Number(item.unitPrice)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                          <td style={{ ...styles.itemTd, textAlign: 'center' }}>
-                            <button type="button" onClick={() => removeItem(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 14, fontWeight: 700 }}>×</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    <tr style={{ background: 'var(--bg-thead)' }}>
-                      <td colSpan={3} style={{ ...styles.itemTd, fontWeight: 700, textAlign: 'right' }}>Total dos Itens:</td>
-                      <td style={{ ...styles.itemTd, textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
-                        {items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-                </div>
-              )}
-            </div>
-            <div style={styles.modalFooter}>
-              <button onClick={() => setModal(false)} style={styles.btnCancel}>Cancelar</button>
-              <button onClick={handleSave} style={styles.btnPrimary}>Salvar</button>
-            </div>
+        <Modal
+          title={editing ? 'Editar Pedido' : 'Novo Pedido'}
+          onClose={() => setModal(false)}
+          maxWidth={700}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setModal(false)}>Cancelar</Button>
+              <Button onClick={handleSave}>Salvar</Button>
+            </>
+          }
+        >
+          <div style={styles.grid2} className="modal-grid-2">
+            <FormField label="Nº do Pedido *">
+              <TextInput value={form.orderNumber || ''} onChange={e => setForm(f => ({ ...f, orderNumber: e.target.value }))} />
+            </FormField>
+            <FormField label="Fornecedor *">
+              <TextInput value={form.supplier || ''} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} />
+            </FormField>
+            <FormField label="Origem">
+              <TextInput value={form.origin || ''} onChange={e => setForm(f => ({ ...f, origin: e.target.value }))} />
+            </FormField>
+            <FormField label="Status">
+              <Select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as OrderStatus }))}>
+                {Object.entries(ORDER_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Data do Pedido">
+              <TextInput type="date" value={form.orderDate || ''} onChange={e => setForm(f => ({ ...f, orderDate: e.target.value }))} />
+            </FormField>
+            <FormField label="Previsão de Chegada">
+              <TextInput type="date" value={form.expectedArrival || ''} onChange={e => setForm(f => ({ ...f, expectedArrival: e.target.value }))} />
+            </FormField>
+            <FormField label="Data Chegada Real">
+              <TextInput type="date" value={form.actualArrival || ''} onChange={e => setForm(f => ({ ...f, actualArrival: e.target.value }))} />
+            </FormField>
+            <FormField label="Valor Total">
+              <TextInput type="number" value={form.totalValue || 0} onChange={e => setForm(f => ({ ...f, totalValue: Number(e.target.value) }))} />
+            </FormField>
+            <FormField label="Moeda">
+              <Select value={form.currency || 'USD'} onChange={e => fetchExchangeRate(e.target.value)}>
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </Select>
+            </FormField>
+            <FormField label={<>Taxa de Câmbio {fetchingRate && <span style={{ fontWeight: 400, color: 'var(--color-primary)' }}>(buscando...)</span>}</>}>
+              <TextInput type="number" step="0.0001" value={form.exchangeRate || 1} onChange={e => setForm(f => ({ ...f, exchangeRate: Number(e.target.value) }))} />
+            </FormField>
+            <FormField label="Nº da Invoice">
+              <TextInput value={form.invoiceNumber || ''} onChange={e => setForm(f => ({ ...f, invoiceNumber: e.target.value }))} />
+            </FormField>
           </div>
-        </div>
+
+          <FormField label="Códigos de Rastreio">
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <TextInput
+                value={trackingInput}
+                onChange={e => setTrackingInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTrackingCode(); } }}
+                placeholder="Digite o código e pressione Enter ou clique em Adicionar"
+                style={{ flex: 1 }}
+              />
+              <Button type="button" onClick={addTrackingCode} style={{ whiteSpace: 'nowrap' }}>Adicionar</Button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {parseCodes(form.trackingCode).map(c => (
+                <Chip key={c} onRemove={() => removeTrackingCode(c)}>{c}</Chip>
+              ))}
+            </div>
+          </FormField>
+
+          <div style={{ marginTop: 14 }}>
+            <FormField label="Observações">
+              <Textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} style={{ height: 70 }} />
+            </FormField>
+          </div>
+
+          {/* Itens do Pedido */}
+          <div style={{ marginTop: 20 }}>
+            <div style={styles.sectionDivider}>Itens do Pedido</div>
+            <div className="modal-item-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
+              <FormField label="Produto *">
+                <Select value={itemDraft.productId} onChange={e => { const p = products.find(x => x.id === Number(e.target.value)); setItemDraft(d => ({ ...d, productId: Number(e.target.value), unitPrice: p ? Number(p.costPrice) : d.unitPrice })); }}>
+                  <option value={0}>Selecione...</option>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Quantidade">
+                <TextInput type="number" min={0.001} step={0.001} value={itemDraft.quantity} onChange={e => setItemDraft(d => ({ ...d, quantity: Number(e.target.value) }))} />
+              </FormField>
+              <FormField label="Preço Unit.">
+                <TextInput type="number" min={0} step={0.01} value={itemDraft.unitPrice} onChange={e => setItemDraft(d => ({ ...d, unitPrice: Number(e.target.value) }))} />
+              </FormField>
+              <Button type="button" onClick={addItem} className="modal-item-add-btn" style={{ alignSelf: 'flex-end' }}>+ Adicionar</Button>
+            </div>
+            {items.length > 0 && (
+              <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 4 }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-thead)' }}>
+                    <th style={styles.itemTh}>Produto</th>
+                    <th style={{ ...styles.itemTh, textAlign: 'right' }}>Qtd</th>
+                    <th style={{ ...styles.itemTh, textAlign: 'right' }}>Preço Unit.</th>
+                    <th style={{ ...styles.itemTh, textAlign: 'right' }}>Total</th>
+                    <th style={styles.itemTh}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, i) => {
+                    const prod = products.find(p => p.id === item.productId);
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border-row)' }}>
+                        <td style={styles.itemTd}>{prod ? `${prod.name} (${prod.sku})` : `ID ${item.productId}`}</td>
+                        <td style={{ ...styles.itemTd, textAlign: 'right' }}>{Number(item.quantity).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}</td>
+                        <td style={{ ...styles.itemTd, textAlign: 'right' }}>{Number(item.unitPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ ...styles.itemTd, textAlign: 'right', fontWeight: 700 }}>{(Number(item.quantity) * Number(item.unitPrice)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ ...styles.itemTd, textAlign: 'center' }}>
+                          <button type="button" onClick={() => removeItem(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', fontSize: 14, fontWeight: 700 }}>×</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  <tr style={{ background: 'var(--bg-thead)' }}>
+                    <td colSpan={3} style={{ ...styles.itemTd, fontWeight: 700, textAlign: 'right' }}>Total dos Itens:</td>
+                    <td style={{ ...styles.itemTd, textAlign: 'right', fontWeight: 800, color: 'var(--color-primary)' }}>
+                      {items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Remover pedido?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Remover"
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' },
   toolbar: { marginBottom: 16 },
-  filterSelect: { padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-body)', cursor: 'pointer' },
   statusSelect: { padding: '4px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, border: '1.5px solid', cursor: 'pointer', outline: 'none' },
   loading: { padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' },
-  tableWrap: { background: 'var(--bg-card)', borderRadius: 12, boxShadow: 'var(--shadow)', overflowY: 'auto', overflowX: 'auto', maxHeight: 'calc(100vh - 240px)', minHeight: 200 },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  thead: { background: 'var(--bg-thead)' },
-  th: { padding: '12px 14px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg-thead)', zIndex: 1 },
-  tr: { borderBottom: '1px solid var(--border-row)' },
-  td: { padding: '11px 14px', fontSize: 13, color: 'var(--text-body)' },
-  sku: { background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 700 },
-  badge: { padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 },
-  empty: { padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' },
-  btnPrimary: { padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
-  btnSync: { padding: '9px 18px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: '1.5px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
-  btnEdit: { marginRight: 6, padding: '5px 10px', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
-  btnDel: { padding: '5px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  modal: { background: 'var(--bg-card)', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 700, maxHeight: '90dvh', overflowY: 'auto', boxSizing: 'border-box' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20 },
   grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, minWidth: 0 },
-  field: { display: 'flex', flexDirection: 'column', gap: 4 },
-  label: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' },
-  input: { padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-body)' },
-  modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 },
-  itemsBadge: { background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700 },
   sectionDivider: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: 8, marginBottom: 12 },
   itemTh: { padding: '6px 8px', textAlign: 'left' as const, color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border)' },
   itemTd: { padding: '6px 8px', color: 'var(--text-body)' },
-  trackChip: { display: 'inline-block', background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600 },
-  trackChipEdit: { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#eff6ff', color: '#2563eb', padding: '3px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 },
-  trackRemove: { background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: 0 },
-  btnAdd: { padding: '8px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' },
-  btnCancel: { padding: '9px 18px', background: 'var(--bg-cancel)', color: 'var(--text-cancel)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
 };

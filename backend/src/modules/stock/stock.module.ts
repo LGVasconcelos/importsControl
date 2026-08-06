@@ -4,9 +4,10 @@ import { StockMovement } from './stock-movement.entity';
 import { Product } from '../products/product.entity';
 import { StockService } from './stock.service';
 import { StockController } from './stock.controller';
+import { ProductsModule } from '../products/products.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([StockMovement, Product])],
+  imports: [TypeOrmModule.forFeature([StockMovement, Product]), ProductsModule],
   providers: [StockService],
   controllers: [StockController],
   exports: [StockService],
