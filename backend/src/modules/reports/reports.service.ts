@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Product } from '../products/product.entity';
 import { StockMovement, MovementType } from '../stock/stock-movement.entity';
 import { Order, OrderStatus } from '../orders/order.entity';
@@ -10,6 +10,13 @@ import { ProductListingPause } from '../mercadolivre/product-listing-pause.entit
 // Usado só quando ainda não há pedidos RECEBIDOS suficientes para calcular um
 // lead time real (ver getReorderSuggestions) — estimativa grosseira de importação da China.
 const FALLBACK_LEAD_TIME_DAYS = 30;
+
+// origin é texto livre (sem cadastro de fornecedor/país estruturado) — identifica
+// pedidos nacionais para excluí-los do cálculo de lead time de importação.
+const DOMESTIC_ORIGINS = ['brasil', 'brazil', 'br', 'nacional'];
+function isDomesticOrigin(origin?: string | null): boolean {
+  return DOMESTIC_ORIGINS.includes((origin || '').trim().toLowerCase());
+}
 
 @Injectable()
 export class ReportsService {
@@ -116,7 +123,10 @@ export class ReportsService {
     // Lead time médio (global — volume de pedidos ainda é pequeno demais para
     // confiar num cálculo por fornecedor): tempo entre orderDate e a movimentação
     // de ENTRADA gerada no recebimento (actualArrival nunca é preenchido hoje).
-    const receivedOrders = await this.orderRepo.find({ where: { status: OrderStatus.RECEIVED } });
+    // Pedidos nacionais (origin Brasil) são excluídos — têm prazo bem mais curto
+    // que importação da China e distorceriam a média pra baixo.
+    const allReceivedOrders = await this.orderRepo.find({ where: { status: OrderStatus.RECEIVED } });
+    const receivedOrders = allReceivedOrders.filter(o => !isDomesticOrigin(o.origin));
     let avgLeadTimeDays = FALLBACK_LEAD_TIME_DAYS;
     if (receivedOrders.length) {
       const orderNumbers = receivedOrders.map(o => o.orderNumber);
@@ -138,7 +148,11 @@ export class ReportsService {
         const days = (receivedAt.getTime() - new Date(o.orderDate).getTime()) / 86400000;
         if (days > 0) { totalDays += days; count++; }
       }
-      if (count > 0) avgLeadTimeDays = totalDays / count;
+      // Com poucos pedidos, a data de "recebido" registrada no sistema nem sempre
+      // reflete a chegada física real (lançamento tardio/retroativo) — por isso o
+      // cálculo nunca fica abaixo do prazo real conhecido do negócio (FALLBACK_LEAD_TIME_DAYS),
+      // só sobe se o histórico indicar um prazo médio pior que isso.
+      if (count > 0) avgLeadTimeDays = Math.max(totalDays / count, FALLBACK_LEAD_TIME_DAYS);
     }
 
     // Ruptura: eventos que tocam os últimos 90 dias (abertos ou fechados nesse período)
@@ -161,14 +175,27 @@ export class ReportsService {
       ruptureMap.set(ev.productId, cur);
     }
 
+    // Estoque já a caminho: itens de pedidos ainda não recebidos (nem cancelados),
+    // pra não sugerir comprar de novo algo que já foi pedido e está em trânsito/despacho.
+    const incomingOrders = await this.orderRepo.find({
+      where: { status: In([OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.IN_TRANSIT, OrderStatus.CUSTOMS]) },
+    });
+    const incomingMap = new Map<number, number>();
+    for (const o of incomingOrders) {
+      for (const item of o.items || []) {
+        incomingMap.set(item.productId, (incomingMap.get(item.productId) || 0) + Number(item.quantity));
+      }
+    }
+
     const products = await this.productRepo.find({ where: { active: true, isKit: false } });
 
     const suggestions = products.map(p => {
       const avgDailySales = salesMap.get(p.id) || 0;
       const rupture = ruptureMap.get(p.id) || { episodes: 0, days: 0 };
+      const incomingQty = incomingMap.get(p.id) || 0;
       const daysUntilStockout = avgDailySales > 0 ? p.currentStock / avgDailySales : null;
       const suggestedReorderQty = avgDailySales > 0
-        ? Math.max(0, Math.ceil(avgDailySales * (avgLeadTimeDays + coverageDays) - p.currentStock))
+        ? Math.max(0, Math.ceil(avgDailySales * (avgLeadTimeDays + coverageDays) - p.currentStock - incomingQty))
         : 0;
 
       return {
@@ -177,6 +204,7 @@ export class ReportsService {
         name: p.name,
         currentStock: p.currentStock,
         minimumStock: p.minimumStock,
+        incomingQty,
         avgDailySales: Number(avgDailySales.toFixed(2)),
         avgLeadTimeDays: Number(avgLeadTimeDays.toFixed(1)),
         daysUntilStockout: daysUntilStockout !== null ? Number(daysUntilStockout.toFixed(1)) : null,

@@ -155,6 +155,7 @@ export default function ReportsPage() {
         <>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
             Ordenado por urgência: anúncios pausados agora primeiro, depois por dias até faltar o estoque.
+            A sugestão de compra já desconta o que está "a caminho" (pedidos confirmados/em trânsito/desembaraço ainda não recebidos).
             As colunas de ruptura/tempo pausado só têm histórico a partir de quando essa análise entrou no ar — vão crescer com o tempo.
           </p>
           {reorderLoading ? (
@@ -163,7 +164,7 @@ export default function ReportsPage() {
             <TableWrap>
               <thead>
                 <tr>
-                  {['SKU', 'Produto', 'Estoque', 'Vendas/dia', 'Dias até faltar', 'Rupturas (90d)', 'Tempo pausado (90d)', 'Sugestão de compra', 'Situação'].map(h => (
+                  {['SKU', 'Produto', 'Estoque', 'A caminho', 'Vendas/dia', 'Dias até faltar', 'Rupturas (90d)', 'Tempo pausado (90d)', 'Sugestão de compra', 'Situação'].map(h => (
                     <Th key={h}>{h}</Th>
                   ))}
                 </tr>
@@ -176,6 +177,7 @@ export default function ReportsPage() {
                       <Td data-label="SKU"><Badge tone="primary">{r.sku}</Badge></Td>
                       <Td data-label="Produto">{r.name}</Td>
                       <Td data-label="Estoque" style={{ fontWeight: 700 }}>{r.currentStock}</Td>
+                      <Td data-label="A caminho">{r.incomingQty > 0 ? r.incomingQty : '—'}</Td>
                       <Td data-label="Vendas/dia">{r.avgDailySales}</Td>
                       <Td data-label="Dias até faltar">{r.daysUntilStockout ?? '—'}</Td>
                       <Td data-label="Rupturas (90d)">{r.ruptureEpisodes90d}</Td>
@@ -194,7 +196,7 @@ export default function ReportsPage() {
                   );
                 })}
                 {reorderData.length === 0 && (
-                  <tr><td colSpan={9}><EmptyState>Nenhum produto ativo encontrado.</EmptyState></td></tr>
+                  <tr><td colSpan={10}><EmptyState>Nenhum produto ativo encontrado.</EmptyState></td></tr>
                 )}
               </tbody>
             </TableWrap>

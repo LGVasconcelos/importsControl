@@ -12,6 +12,7 @@ export interface ReorderSuggestion {
   name: string;
   currentStock: number;
   minimumStock: number;
+  incomingQty: number;
   avgDailySales: number;
   avgLeadTimeDays: number;
   daysUntilStockout: number | null;
